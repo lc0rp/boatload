@@ -1,0 +1,34 @@
+# Runtime state
+/data/
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+
+# Browser/test artifacts
+/.playwright-mcp/
+/playwright-report/
+/test-results/
+/blob-report/
+/.playwright/
+/coverage/
+
+# Local screenshots and task artifacts
+/desktop-linear-*.png
+/output/
+
+# Node and package-manager artifacts
+/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/

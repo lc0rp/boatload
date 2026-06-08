@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Desktop Linear</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Codex native issue tracking</p>
+          <h1>Desktop Linear</h1>
+        </div>
+        <div class="status-strip" id="stats"></div>
+      </header>
+
+      <section class="toolbar" aria-label="Issue controls">
+        <div class="segmented" id="filters">
+          <button data-filter="open" class="active">Open</button>
+          <button data-filter="backlog">Backlog</button>
+          <button data-filter="todo">Todo</button>
+          <button data-filter="in_progress">Progress</button>
+          <button data-filter="rework">Rework</button>
+          <button data-filter="code_review">Review</button>
+          <button data-filter="human_review">Human</button>
+          <button data-filter="merging">Merging</button>
+          <button data-filter="done">Done</button>
+          <button data-filter="all">All</button>
+          <button id="sortToggle" class="sort-toggle" type="button" title="Sort by updated date" aria-label="Sort by updated date">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 4v15M6 19l-3-3M6 19l3-3"></path>
+              <path d="M12 6h9M12 10h7M12 14h5M12 18h3"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="toolbar-actions">
+          <select id="projectSelect" aria-label="Project"></select>
+          <button id="addIssue" class="icon-button" title="Add issue [+]" aria-label="Add issue">+</button>
+          <button id="refresh" class="icon-button" title="Refresh [R]">Refresh <span class="shortcut">R</span></button>
+        </div>
+      </section>
+
+      <section class="layout">
+        <aside class="rail" id="rail" aria-label="Issue cards"></aside>
+        <section class="detail" id="detail" aria-live="polite"></section>
+      </section>
+    </main>
+
+    <dialog id="issueDialog" class="modal">
+      <form method="dialog" id="issueForm">
+        <header>
+          <h2>New Issue</h2>
+          <button type="button" value="cancel" aria-label="Close">Close</button>
+        </header>
+        <label>
+          Title
+          <input name="title" required placeholder="Implement Desktop Symphony dispatch view">
+        </label>
+        <label>
+          Description
+          <textarea name="description" placeholder="Acceptance criteria, notes, repo path, or branch context"></textarea>
+        </label>
+        <footer>
+          <button type="button" value="cancel">Cancel</button>
+          <button id="saveIssue" type="submit">Create</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

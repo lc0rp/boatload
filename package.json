@@ -1,0 +1,15 @@
+{
+  "name": "desktop-linear",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Codex-native local issue tracker for Desktop Symphony projects.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "start:tailscale": "HOST=0.0.0.0 PORT=4888 node src/server.js",
+    "import:linear": "node scripts/import-linear.js",
+    "validate": "node scripts/validate.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
