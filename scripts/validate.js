@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { parseProjectCandidate, projectCreateLabel } from "../public/project-selector.js";
 
 const port = Number.parseInt(process.env.PORT || "4989", 10);
 const base = `http://127.0.0.1:${port}`;
@@ -16,6 +17,8 @@ try {
   await waitForServer(server);
 
   await post("/api/projects", { slug: "VAL", name: "Validation Project" });
+  assert(projectCreateLabel(parseProjectCandidate("New Project")) === "Create \"New Project, NEW\"", "expected project selector to guess a three-letter project stub");
+  assert(projectCreateLabel(parseProjectCandidate("Customer Ops, COPS")) === "Create \"Customer Ops, COPS\"", "expected project selector to keep an explicit typed project stub");
   const created = await post("/api/issues", {
     project_slug: "VAL",
     title: "Validate Desktop Linear lifecycle",

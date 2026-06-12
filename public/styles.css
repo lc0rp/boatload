@@ -57,7 +57,12 @@ h1 { font-size: 40px; line-height: 1; }
   margin-bottom: 16px;
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
+}
+.toolbar-actions {
+  align-items: flex-start;
+  flex-wrap: nowrap;
 }
 .segmented { display: flex; border: 1px solid var(--line); background: var(--panel); }
 .segmented button, .icon-button, .action-row button, select {
@@ -90,6 +95,46 @@ h1 { font-size: 40px; line-height: 1; }
   transform: rotate(180deg);
 }
 select { border: 1px solid var(--line); background: var(--panel); }
+.project-combobox {
+  position: relative;
+  min-width: 260px;
+}
+.project-combobox input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0 12px;
+}
+.project-options {
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  display: grid;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.project-options button {
+  min-height: 36px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 0 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.project-options button:last-child { border-bottom: 0; }
+.project-options button:hover {
+  background: var(--ink);
+  color: var(--panel);
+}
 .segmented button.active, .icon-button:hover, .action-row button:hover {
   background: var(--ink);
   color: var(--panel);
@@ -227,13 +272,16 @@ select { border: 1px solid var(--line); background: var(--panel); }
     width: 100%;
     max-width: 100%;
   }
+  .toolbar-actions {
+    flex-wrap: wrap;
+  }
   .segmented {
     flex-wrap: wrap;
   }
   .segmented button {
     flex: 1 1 auto;
   }
-  .toolbar-actions select {
+  .project-combobox {
     flex: 1 1 180px;
     min-width: 0;
   }

@@ -37,7 +37,10 @@
           </button>
         </div>
         <div class="toolbar-actions">
-          <select id="projectSelect" aria-label="Project"></select>
+          <div class="project-combobox">
+            <input id="projectSelect" aria-label="Project" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="projectOptions">
+            <div id="projectOptions" class="project-options" role="listbox" hidden></div>
+          </div>
           <button id="addIssue" class="icon-button" title="Add issue [+]" aria-label="Add issue">+</button>
           <button id="refresh" class="icon-button" title="Refresh [R]">Refresh <span class="shortcut">R</span></button>
         </div>
