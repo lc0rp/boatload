@@ -157,7 +157,8 @@ select { border: 1px solid var(--line); background: var(--panel); }
   font-size: 13px;
   text-transform: uppercase;
 }
-.section p { margin: 0; line-height: 1.45; }
+.section p, .issue-context { margin: 0; line-height: 1.45; }
+.issue-context { white-space: pre-wrap; }
 .action-panel {
   background: #fff8e8;
   border: 1px solid var(--line);
@@ -171,6 +172,7 @@ select { border: 1px solid var(--line); background: var(--panel); }
   padding: 10px 12px;
 }
 .draft, .comment-box textarea, .modal textarea { min-height: 110px; resize: vertical; }
+.modal textarea[name="issue"] { min-height: 190px; }
 .talk-box, .comment-box {
   display: grid;
   grid-template-columns: 1fr auto;

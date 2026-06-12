@@ -131,7 +131,7 @@ function detailView(card) {
 
     <div class="section">
       <h3>Issue Context</h3>
-      <p>${escapeHtml(card.description || "No description yet.")}</p>
+      <div class="issue-context">${escapeHtml(card.description || "No description yet.")}</div>
     </div>
 
     <div class="section action-panel">
@@ -240,19 +240,21 @@ async function postStatus(cardId, status) {
 function openIssueDialog() {
   issueForm.reset();
   issueDialog.showModal();
-  issueForm.elements.title.focus();
+  issueForm.elements.issue.focus();
 }
 
 async function createIssue(event) {
   event.preventDefault();
   const data = new FormData(issueForm);
+  const issueText = String(data.get("issue") || "");
+  const issue = deriveIssueFields(issueText);
   const response = await fetch("/api/issues", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       project_slug: projectSelect.value || model.app.active_project_slug || "DL",
-      title: data.get("title"),
-      description: data.get("description")
+      title: issue.title,
+      description: issue.description
     })
   });
   const payload = await response.json();
@@ -261,6 +263,13 @@ async function createIssue(event) {
   issueDialog.close();
   renderProjectSelect();
   render();
+}
+
+function deriveIssueFields(input) {
+  const description = input.replace(/\r\n?/g, "\n").trim();
+  const firstLine = description.split("\n").map((line) => line.trim()).find(Boolean) || "Untitled issue";
+  const title = firstLine.length > 110 ? `${firstLine.slice(0, 107).trimEnd()}...` : firstLine;
+  return { title, description };
 }
 
 async function handleGlobalShortcut(event) {
