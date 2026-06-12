@@ -106,6 +106,8 @@ try {
   await waitForServer(server);
   model = await getModel("VAL");
   assert(model.app.sort_direction === "asc", "expected sort direction to persist across restart");
+  const appBundle = await getText("/app.js");
+  assert(appBundle.includes("historySortToggle") && appBundle.includes("history-sort-toggle"), "expected served app bundle to include History sort control");
   card = model.cards.find((candidate) => candidate.key === "VAL-1");
   assert(card.status === "done", "expected state to persist across restart");
   assert(card.events.some((event) => event.type === "github_event_ingested"), "expected GitHub event in history");
@@ -166,6 +168,12 @@ async function getSymphonyIssues(project, states) {
   const response = await fetch(`${base}/api/symphony/issues?project=${encodeURIComponent(project)}&states=${encodeURIComponent(states)}`);
   assert(response.ok, `GET /api/symphony/issues failed: ${response.status}`);
   return response.json();
+}
+
+async function getText(url) {
+  const response = await fetch(`${base}${url}`);
+  assert(response.ok, `GET ${url} failed: ${response.status}`);
+  return response.text();
 }
 
 async function post(url, body) {
