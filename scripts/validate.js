@@ -25,11 +25,22 @@ try {
   });
   const issue = created.issue;
   assert(issue.key === "VAL-1", "expected project-scoped auto-increment key");
+  assert(issue.status === "backlog", "expected new issues without explicit status to start in Backlog");
   assert(issue.proposed_action?.label, "expected proposed action");
+  assert(issue.proposed_action?.label === "Prioritize", "expected Backlog proposed action on default issue");
+
+  const explicitTodo = await post("/api/issues", {
+    project_slug: "VAL",
+    title: "Validate explicit Todo creation",
+    description: "Exercise explicit status creation.",
+    status: "todo"
+  });
+  assert(explicitTodo.issue.key === "VAL-2", "expected second project-scoped issue key");
+  assert(explicitTodo.issue.status === "todo", "expected explicit Todo status to persist on creation");
+
   let sorted = await post("/api/settings", { sort_direction: "asc", project_slug: "VAL" });
   assert(sorted.app.sort_direction === "asc", "expected sort direction to persist through settings API");
 
-  await post(`/api/issues/${issue.issue_id}/status`, { status: "backlog", project_slug: "VAL" });
   let model = await getModel("VAL");
   let card = model.cards.find((candidate) => candidate.key === "VAL-1");
   assert(card.status === "backlog", "expected Backlog status to persist");
