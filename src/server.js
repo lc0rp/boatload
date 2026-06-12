@@ -192,7 +192,7 @@ function createIssue(database, body) {
 
 function loadModel(projectSlug = "") {
   const projects = db.prepare("SELECT * FROM projects ORDER BY slug").all();
-  const activeProject = projectBySlug(db, projectSlug) || projects[0] || null;
+  const activeProject = projectBySlug(db, projectSlug) || projectBySlug(db, getSetting("active_project_slug", "")) || projects[0] || null;
   const sortDirection = normalizedSortDirection(getSetting("sort_direction", "desc"));
   const orderDirection = sortDirection === "asc" ? "ASC" : "DESC";
   const rows = activeProject
@@ -612,7 +612,13 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/settings") {
     const body = await readBody(req);
     if (body.sort_direction !== undefined) setSetting("sort_direction", normalizedSortDirection(body.sort_direction));
-    return sendJson(res, 200, loadModel(body.project_slug || ""));
+    const activeProjectSlug = body.active_project_slug ?? body.project_slug;
+    if (activeProjectSlug !== undefined) {
+      const project = projectBySlug(db, activeProjectSlug);
+      if (!project) return sendError(res, 400, "Project not found.");
+      setSetting("active_project_slug", project.slug);
+    }
+    return sendJson(res, 200, loadModel(activeProjectSlug || body.project_slug || ""));
   }
   if (req.method === "GET" && url.pathname === "/api/symphony/issues") {
     const project = url.searchParams.get("project") || "";
