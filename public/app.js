@@ -17,7 +17,6 @@ const lifecycleStates = [
 const rail = document.querySelector("#rail");
 const detail = document.querySelector("#detail");
 const stats = document.querySelector("#stats");
-const filters = document.querySelector("#filters");
 const sortToggle = document.querySelector("#sortToggle");
 const projectSelect = document.querySelector("#projectSelect");
 const issueDialog = document.querySelector("#issueDialog");
@@ -32,7 +31,7 @@ projectSelect.addEventListener("change", () => {
   activeCardId = null;
   load();
 });
-filters.addEventListener("click", (event) => {
+stats.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-filter]");
   if (!button) return;
   filter = button.dataset.filter;
@@ -102,8 +101,23 @@ async function toggleSortDirection() {
 }
 
 function renderStats() {
-  const data = [["Open", model.stats.open], ["Backlog", model.stats.backlog], ["Todo", model.stats.todo], ["Progress", model.stats.in_progress], ["Rework", model.stats.rework], ["Review", model.stats.code_review], ["Human", model.stats.human_review], ["Merging", model.stats.merging], ["Done", model.stats.done], ["Total", model.stats.total]];
-  stats.innerHTML = data.map(([label, value]) => `<div class="stat"><strong>${value}</strong><span>${label}</span></div>`).join("");
+  const data = [
+    ["open", "Open", model.stats.open],
+    ["backlog", "Backlog", model.stats.backlog],
+    ["todo", "Todo", model.stats.todo],
+    ["in_progress", "Progress", model.stats.in_progress],
+    ["rework", "Rework", model.stats.rework],
+    ["code_review", "Review", model.stats.code_review],
+    ["human_review", "Human", model.stats.human_review],
+    ["merging", "Merging", model.stats.merging],
+    ["done", "Done", model.stats.done],
+    ["all", "Total", model.stats.total]
+  ];
+  stats.innerHTML = data.map(([key, label, value]) => `
+    <button type="button" class="stat ${key === filter ? "active" : ""}" data-filter="${escapeAttr(key)}" aria-pressed="${key === filter}">
+      <strong>${value}</strong><span>${label}</span>
+    </button>
+  `).join("");
 }
 
 function cardButton(card) {
@@ -304,7 +318,11 @@ function selectAfterRemoval(cardId, previousIndex) {
 }
 
 function updateFilterButtons() {
-  for (const node of filters.querySelectorAll("button")) node.classList.toggle("active", node.dataset.filter === filter);
+  for (const node of stats.querySelectorAll("button[data-filter]")) {
+    const isActive = node.dataset.filter === filter;
+    node.classList.toggle("active", isActive);
+    node.setAttribute("aria-pressed", String(isActive));
+  }
 }
 
 function tagHtml(tags) {
