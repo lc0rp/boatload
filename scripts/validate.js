@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { HISTORY_PAGE_SIZE, clampHistoryPage, historyPageItems, latestHistoryPage, mergedHistoryItems } from "../public/history.js";
+import { runInNewContext } from "node:vm";
 
 const port = Number.parseInt(process.env.PORT || "4989", 10);
 const base = `http://127.0.0.1:${port}`;
@@ -16,6 +18,7 @@ let card = null;
 try {
   server = startServer();
   await waitForServer(server);
+  await validateNewIssueDialog();
 
   await post("/api/projects", { slug: "VAL", name: "Validation Project" });
   await post("/api/projects", { slug: "ALT", name: "Alternate Project" });
@@ -28,19 +31,29 @@ try {
   });
   const issue = created.issue;
   assert(issue.key === "VAL-1", "expected project-scoped auto-increment key");
+  assert(issue.status === "backlog", "expected new issues without explicit status to start in Backlog");
   assert(issue.proposed_action?.label, "expected proposed action");
+  assert(issue.proposed_action?.label === "Prioritize", "expected Backlog proposed action on default issue");
+
+  const explicitTodo = await post("/api/issues", {
+    project_slug: "VAL",
+    title: "Validate explicit Todo creation",
+    description: "Exercise explicit status creation.",
+    status: "todo"
+  });
+  assert(explicitTodo.issue.key === "VAL-2", "expected second project-scoped issue key");
+  assert(explicitTodo.issue.status === "todo", "expected explicit Todo status to persist on creation");
+
   let sorted = await post("/api/settings", { sort_direction: "asc", project_slug: "VAL" });
   assert(sorted.app.sort_direction === "asc", "expected sort direction to persist through settings API");
   let activeProject = await post("/api/settings", { active_project_slug: "ALT" });
   assert(activeProject.app.active_project_slug === "ALT", "expected active project setting response");
-  model = await getModel("");
+  let model = await getModel("");
   assert(model.app.active_project_slug === "ALT", "expected active project to persist for no-query refresh");
   model = await getModel("VAL");
   assert(model.app.active_project_slug === "VAL", "expected explicit project query to override remembered project");
 
-  await post(`/api/issues/${issue.issue_id}/status`, { status: "backlog", project_slug: "VAL" });
-  model = await getModel("VAL");
-  card = model.cards.find((candidate) => candidate.key === "VAL-1");
+  let card = model.cards.find((candidate) => candidate.key === "VAL-1");
   assert(card.status === "backlog", "expected Backlog status to persist");
   assert(card.proposed_action?.label === "Prioritize", "expected Backlog proposed action");
 
@@ -106,6 +119,8 @@ try {
   assert(model.app.active_project_slug === "ALT", "expected active project setting to persist across restart");
   model = await getModel("VAL");
   assert(model.app.sort_direction === "asc", "expected sort direction to persist across restart");
+  const appBundle = await getText("/app.js");
+  assert(appBundle.includes("historySortToggle") && appBundle.includes("history-sort-toggle"), "expected served app bundle to include History sort control");
   card = model.cards.find((candidate) => candidate.key === "VAL-1");
   assert(card.status === "done", "expected state to persist across restart");
   assert(card.events.some((event) => event.type === "github_event_ingested"), "expected GitHub event in history");
@@ -116,11 +131,76 @@ try {
   assert(events.includes("workpad_created") && events.includes("workpad_updated"), "expected workpad upsert events in append-only log");
   const codexTasks = await readFile(codexTasksPath, "utf8");
   assert(codexTasks.includes("next review step"), "expected Codex task queue mirror");
+  validateHistoryPagination();
+  await validateHistoryLinks();
 
-  console.log("Validation passed: project IDs, lifecycle states, comments, workpad upsert, talk-to-card Codex queue, GitHub events, restart persistence, remembered active project, and event log all work.");
+  console.log("Validation passed: project IDs, lifecycle states, comments, workpad upsert, clickable paginated history, talk-to-card Codex queue, GitHub events, restart persistence, remembered active project, and event log all work.");
 } finally {
   if (server) server.kill("SIGTERM");
   await rm(validationRoot, { recursive: true, force: true });
+}
+
+async function validateHistoryLinks() {
+  const element = {
+    dataset: {},
+    value: "",
+    classList: { toggle() {} },
+    addEventListener() {},
+    querySelector() { return element; },
+    querySelectorAll() { return []; },
+    setAttribute() {},
+    focus() {},
+    close() {},
+    showModal() {},
+    contains() { return false; },
+    scrollIntoView() {}
+  };
+  const sandbox = {
+    __DESKTOP_LINEAR_TESTS__: {},
+    document: {
+      activeElement: null,
+      addEventListener() {},
+      querySelector() { return element; }
+    },
+    Element: class Element {},
+    fetch: async () => ({
+      json: async () => ({
+        app: { active_project_slug: "VAL", sort_direction: "desc" },
+        projects: [{ slug: "VAL", name: "Validation Project" }],
+        stats: { open: 0, backlog: 0, todo: 0, in_progress: 0, rework: 0, code_review: 0, human_review: 0, merging: 0, done: 0, total: 0 },
+        cards: []
+      })
+    }),
+    FormData,
+    HISTORY_PAGE_SIZE,
+    clampHistoryPage,
+    historyPageItems,
+    latestHistoryPage,
+    mergedHistoryItems,
+    Intl,
+    localStorage: { getItem() { return ""; }, setItem() {} },
+    URL,
+    URLSearchParams,
+    window: {
+      location: { href: "http://127.0.0.1:4888/?project=VAL", search: "?project=VAL" },
+      history: { replaceState() {} }
+    },
+    console
+  };
+  sandbox.globalThis = sandbox;
+  const appScript = (await readFile(path.join(new URL("..", import.meta.url).pathname, "public", "app.js"), "utf8"))
+    .replace('import { HISTORY_PAGE_SIZE, clampHistoryPage, historyPageItems, latestHistoryPage, mergedHistoryItems } from "./history.js";', "");
+  runInNewContext(appScript, sandbox);
+  const historyHtml = sandbox.__DESKTOP_LINEAR_TESTS__.historyHtml;
+  assert(typeof historyHtml === "function", "expected history renderer test hook");
+  const html = historyHtml({
+    events: [{ created_at: "2026-01-01T00:00:00.000Z", actor: "GitHub", summary: "Opened https://github.com/example/repo/pull/1." }],
+    comments: [{ created_at: "2026-01-01T00:01:00.000Z", author: "User", body: "Review <script>alert(1)</script> at https://linear.app/test" }]
+  });
+  assert(html.includes('<a href="https://github.com/example/repo/pull/1" target="_blank" rel="noreferrer">https://github.com/example/repo/pull/1</a>.'), "expected history URL with trailing punctuation to become a link");
+  assert(html.includes('<a href="https://linear.app/test" target="_blank" rel="noreferrer">https://linear.app/test</a>'), "expected comment URL to become a link");
+  assert(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"), "expected unsafe history text to remain escaped");
+  assert(!html.includes("<script>"), "expected history renderer not to emit script tags");
 }
 
 function startServer() {
@@ -168,6 +248,12 @@ async function getSymphonyIssues(project, states) {
   return response.json();
 }
 
+async function getText(url) {
+  const response = await fetch(`${base}${url}`);
+  assert(response.ok, `GET ${url} failed: ${response.status}`);
+  return response.text();
+}
+
 async function post(url, body) {
   const response = await fetch(`${base}${url}`, {
     method: "POST",
@@ -179,6 +265,38 @@ async function post(url, body) {
   return payload;
 }
 
+async function validateNewIssueDialog() {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const app = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert(html.includes('textarea name="issue" required'), "expected new issue dialog to use one required issue textarea");
+  assert(!html.includes('name="title"') && !html.includes('name="description"'), "expected new issue dialog to remove separate title and description fields");
+  assert(app.includes("deriveIssueFields"), "expected create flow to derive title and description from the issue textarea");
+  assert(styles.includes(".issue-context { white-space: pre-wrap; }"), "expected issue context rendering to preserve newlines");
+}
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function validateHistoryPagination() {
+  const card = {
+    events: Array.from({ length: 11 }, (_, index) => ({
+      created_at: `2026-01-01T00:${String(index).padStart(2, "0")}:00.000Z`,
+      actor: "event",
+      summary: `event-${index}`
+    })),
+    comments: Array.from({ length: 2 }, (_, index) => ({
+      created_at: `2026-01-01T00:${String(index + 11).padStart(2, "0")}:00.000Z`,
+      author: "comment",
+      body: `comment-${index}`
+    }))
+  };
+  const items = mergedHistoryItems(card);
+  assert(items.length === 13, "expected history merge to include events and comments");
+  assert(latestHistoryPage(items.length) === 2, "expected 13 history items to produce two pages");
+  assert(historyPageItems(items, latestHistoryPage(items.length)).length === 3, "expected latest history page to contain remaining newest items");
+  assert(historyPageItems(items, 1).length === HISTORY_PAGE_SIZE, "expected first history page to contain 10 items");
+  assert(clampHistoryPage(99, items.length) === 2, "expected high history page to clamp to last page");
+  assert(clampHistoryPage(0, items.length) === 1, "expected low history page to clamp to first page");
 }

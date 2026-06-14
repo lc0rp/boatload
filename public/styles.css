@@ -43,24 +43,35 @@ h1, .detail h2, .modal h2 {
   letter-spacing: 0;
 }
 h1 { font-size: 40px; line-height: 1; }
-.status-strip, .toolbar-actions, .action-row, .tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.status-strip, .toolbar-actions, .action-row, .tags, .section-header { display: flex; gap: 8px; flex-wrap: wrap; }
 .status-strip { justify-content: flex-end; }
 .stat {
   border: 1px solid var(--line);
   background: rgba(255, 252, 245, 0.82);
+  color: var(--ink);
   padding: 8px 10px;
   min-width: 82px;
+  min-height: 54px;
+  text-align: left;
+  cursor: pointer;
 }
 .stat strong { display: block; font-size: 18px; }
 .stat span, .meta, .source, .history-line { color: var(--muted); font-size: 13px; }
+.stat.active,
+.stat:hover {
+  border-color: var(--accent);
+  background: var(--ink);
+  color: var(--panel);
+}
+.stat.active span,
+.stat:hover span { color: rgba(255, 252, 245, 0.78); }
 .toolbar {
   margin-bottom: 16px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
 }
-.segmented { display: flex; border: 1px solid var(--line); background: var(--panel); }
-.segmented button, .icon-button, .action-row button, select {
+.icon-button, .action-row button, select {
   min-height: 38px;
   border: 0;
   background: transparent;
@@ -90,7 +101,7 @@ h1 { font-size: 40px; line-height: 1; }
   transform: rotate(180deg);
 }
 select { border: 1px solid var(--line); background: var(--panel); }
-.segmented button.active, .icon-button:hover, .action-row button:hover {
+.icon-button:hover, .action-row button:hover {
   background: var(--ink);
   color: var(--panel);
 }
@@ -151,13 +162,20 @@ select { border: 1px solid var(--line); background: var(--panel); }
   white-space: nowrap;
 }
 .section { border-bottom: 1px solid var(--line); padding: 18px 0; }
+.section-header {
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
 .section h3 {
   margin: 0 0 8px;
   color: var(--accent);
   font-size: 13px;
   text-transform: uppercase;
 }
-.section p { margin: 0; line-height: 1.45; }
+.section-header h3 { margin: 0; }
+.section p, .issue-context { margin: 0; line-height: 1.45; }
+.issue-context { white-space: pre-wrap; }
 .action-panel {
   background: #fff8e8;
   border: 1px solid var(--line);
@@ -171,6 +189,7 @@ select { border: 1px solid var(--line); background: var(--panel); }
   padding: 10px 12px;
 }
 .draft, .comment-box textarea, .modal textarea { min-height: 110px; resize: vertical; }
+.modal textarea[name="issue"] { min-height: 190px; }
 .talk-box, .comment-box {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -204,8 +223,50 @@ select { border: 1px solid var(--line); background: var(--panel); }
   font-weight: 900;
 }
 .history { display: grid; gap: 8px; }
+.history-sort-toggle {
+  min-height: 30px;
+  min-width: 34px;
+  border: 1px solid var(--line);
+  background: #fffaf1;
+  color: var(--muted);
+}
+.history-sort-toggle:hover {
+  background: var(--ink);
+  color: var(--panel);
+}
+.history-sort-toggle svg {
+  width: 18px;
+  height: 18px;
+}
 .history-item { border-left: 3px solid var(--line); padding-left: 10px; }
 .history-text { white-space: pre-wrap; }
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.history-pagination button {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  background: #fffaf1;
+  color: var(--ink);
+  padding: 0 12px;
+  cursor: pointer;
+}
+.history-pagination button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.55;
+}
+.history-pagination button:not(:disabled):hover {
+  background: var(--ink);
+  color: var(--panel);
+}
 .empty { display: grid; place-items: center; min-height: 240px; color: var(--muted); }
 .modal {
   width: min(720px, calc(100vw - 28px));
@@ -223,20 +284,16 @@ select { border: 1px solid var(--line); background: var(--panel); }
 @media (max-width: 900px) {
   .shell { padding: 14px; }
   .topbar, .toolbar { align-items: start; flex-direction: column; }
-  .toolbar, .segmented, .toolbar-actions {
+  .toolbar, .toolbar-actions {
     width: 100%;
     max-width: 100%;
-  }
-  .segmented {
-    flex-wrap: wrap;
-  }
-  .segmented button {
-    flex: 1 1 auto;
   }
   .toolbar-actions select {
     flex: 1 1 180px;
     min-width: 0;
   }
+  .status-strip { justify-content: flex-start; }
+  .stat { flex: 1 1 88px; }
   .layout { height: auto; grid-template-columns: 1fr; }
   .rail, .detail { max-height: none; overflow: visible; }
   .detail { order: -1; }

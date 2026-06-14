@@ -174,7 +174,7 @@ function createIssue(database, body) {
     key,
     requiredText(body.title, "Issue title is required."),
     String(body.description || ""),
-    normalizeStatus(body.status || "todo"),
+    normalizeStatus(body.status || "backlog"),
     String(body.priority || "normal"),
     JSON.stringify(asArray(body.labels)),
     String(body.assignee || ""),
