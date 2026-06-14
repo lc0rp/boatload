@@ -4,6 +4,7 @@ let model = null;
 let activeCardId = null;
 let filter = "open";
 let lastFlowDirection = 1;
+let activeProjectSlug = projectFromLocation() || localStorage.getItem("desktop-linear.activeProject") || "";
 let historySortDirection = "asc";
 const historyPages = new Map();
 const openStates = new Set(["backlog", "todo", "in_progress", "rework", "code_review", "human_review", "merging"]);
@@ -33,6 +34,8 @@ issueForm.addEventListener("submit", createIssue);
 issueForm.querySelectorAll("button[value='cancel']").forEach((button) => button.addEventListener("click", () => issueDialog.close()));
 projectSelect.addEventListener("change", () => {
   activeCardId = null;
+  activeProjectSlug = projectSelect.value || "";
+  persistActiveProject(activeProjectSlug);
   load();
 });
 stats.addEventListener("click", (event) => {
@@ -45,19 +48,21 @@ stats.addEventListener("click", (event) => {
 document.addEventListener("keydown", handleGlobalShortcut);
 
 async function load() {
-  const project = projectSelect.value || "";
+  const project = activeProjectSlug || projectSelect.value || "";
   const response = await fetch(`/api/model${project ? `?project=${encodeURIComponent(project)}` : ""}`);
   model = await response.json();
   renderProjectSelect();
   renderSortToggle();
+  persistActiveProject(model.app.active_project_slug);
   activeCardId = activeCardId || model.cards[0]?.id || null;
   render();
 }
 
 function renderProjectSelect() {
-  const current = projectSelect.value || model.app.active_project_slug || model.projects[0]?.slug || "";
+  const current = activeProjectSlug || model.app.active_project_slug || model.projects[0]?.slug || "";
   projectSelect.innerHTML = model.projects.map((project) => `<option value="${escapeAttr(project.slug)}">${escapeHtml(project.slug)} · ${escapeHtml(project.name)}</option>`).join("");
   projectSelect.value = current;
+  activeProjectSlug = projectSelect.value || current;
 }
 
 function visibleCards() {
@@ -97,7 +102,7 @@ async function toggleSortDirection() {
   const next = current === "asc" ? "desc" : "asc";
   model = await postRaw("/api/settings", {
     sort_direction: next,
-    project_slug: projectSelect.value || model?.app?.active_project_slug || ""
+    project_slug: activeProjectSlug || projectSelect.value || model?.app?.active_project_slug || ""
   });
   activeCardId = model.cards[0]?.id || activeCardId;
   renderProjectSelect();
@@ -255,6 +260,7 @@ async function post(url, body) {
   model = await response.json();
   if (model.model) model = model.model;
   renderProjectSelect();
+  persistActiveProject(model.app.active_project_slug);
   render();
 }
 
@@ -352,6 +358,22 @@ function updateFilterButtons() {
     node.classList.toggle("active", isActive);
     node.setAttribute("aria-pressed", String(isActive));
   }
+}
+
+function projectFromLocation() {
+  return new URLSearchParams(window.location.search).get("project") || "";
+}
+
+async function persistActiveProject(projectSlug) {
+  if (!projectSlug) return;
+  activeProjectSlug = projectSlug;
+  localStorage.setItem("desktop-linear.activeProject", projectSlug);
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("project") !== projectSlug) {
+    url.searchParams.set("project", projectSlug);
+    window.history.replaceState({}, "", url);
+  }
+  await postRaw("/api/settings", { active_project_slug: projectSlug });
 }
 
 function tagHtml(tags) {

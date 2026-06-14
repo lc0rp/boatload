@@ -12,6 +12,8 @@ const dbPath = path.join(validationRoot, "desktop-linear.sqlite");
 const eventsPath = path.join(validationRoot, "events.jsonl");
 const codexTasksPath = path.join(validationRoot, "codex-tasks.jsonl");
 let server = null;
+let model = null;
+let card = null;
 
 try {
   server = startServer();
@@ -19,6 +21,7 @@ try {
   await validateNewIssueDialog();
 
   await post("/api/projects", { slug: "VAL", name: "Validation Project" });
+  await post("/api/projects", { slug: "ALT", name: "Alternate Project" });
   const created = await post("/api/issues", {
     project_slug: "VAL",
     title: "Validate Desktop Linear lifecycle",
@@ -43,8 +46,13 @@ try {
 
   let sorted = await post("/api/settings", { sort_direction: "asc", project_slug: "VAL" });
   assert(sorted.app.sort_direction === "asc", "expected sort direction to persist through settings API");
+  let activeProject = await post("/api/settings", { active_project_slug: "ALT" });
+  assert(activeProject.app.active_project_slug === "ALT", "expected active project setting response");
+  let model = await getModel("");
+  assert(model.app.active_project_slug === "ALT", "expected active project to persist for no-query refresh");
+  model = await getModel("VAL");
+  assert(model.app.active_project_slug === "VAL", "expected explicit project query to override remembered project");
 
-  let model = await getModel("VAL");
   let card = model.cards.find((candidate) => candidate.key === "VAL-1");
   assert(card.status === "backlog", "expected Backlog status to persist");
   assert(card.proposed_action?.label === "Prioritize", "expected Backlog proposed action");
@@ -107,6 +115,8 @@ try {
   server.kill("SIGTERM");
   server = startServer();
   await waitForServer(server);
+  model = await getModel("");
+  assert(model.app.active_project_slug === "ALT", "expected active project setting to persist across restart");
   model = await getModel("VAL");
   assert(model.app.sort_direction === "asc", "expected sort direction to persist across restart");
   const appBundle = await getText("/app.js");
@@ -124,7 +134,7 @@ try {
   validateHistoryPagination();
   await validateHistoryLinks();
 
-  console.log("Validation passed: project IDs, lifecycle states, comments, workpad upsert, clickable paginated history, talk-to-card Codex queue, GitHub events, restart persistence, and event log all work.");
+  console.log("Validation passed: project IDs, lifecycle states, comments, workpad upsert, clickable paginated history, talk-to-card Codex queue, GitHub events, restart persistence, remembered active project, and event log all work.");
 } finally {
   if (server) server.kill("SIGTERM");
   await rm(validationRoot, { recursive: true, force: true });
@@ -168,6 +178,13 @@ async function validateHistoryLinks() {
     latestHistoryPage,
     mergedHistoryItems,
     Intl,
+    localStorage: { getItem() { return ""; }, setItem() {} },
+    URL,
+    URLSearchParams,
+    window: {
+      location: { href: "http://127.0.0.1:4888/?project=VAL", search: "?project=VAL" },
+      history: { replaceState() {} }
+    },
     console
   };
   sandbox.globalThis = sandbox;
