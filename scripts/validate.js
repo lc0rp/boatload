@@ -14,6 +14,7 @@ let server = null;
 try {
   server = startServer();
   await waitForServer(server);
+  await validateNewIssueDialog();
 
   await post("/api/projects", { slug: "VAL", name: "Validation Project" });
   const created = await post("/api/issues", {
@@ -177,6 +178,16 @@ async function post(url, body) {
   const payload = await response.json();
   assert(response.ok, `POST ${url} failed: ${response.status} ${JSON.stringify(payload)}`);
   return payload;
+}
+
+async function validateNewIssueDialog() {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const app = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert(html.includes('textarea name="issue" required'), "expected new issue dialog to use one required issue textarea");
+  assert(!html.includes('name="title"') && !html.includes('name="description"'), "expected new issue dialog to remove separate title and description fields");
+  assert(app.includes("deriveIssueFields"), "expected create flow to derive title and description from the issue textarea");
+  assert(styles.includes(".issue-context { white-space: pre-wrap; }"), "expected issue context rendering to preserve newlines");
 }
 
 function assert(condition, message) {
