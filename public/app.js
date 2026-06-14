@@ -4,6 +4,7 @@ let model = null;
 let activeCardId = null;
 let filter = "open";
 let lastFlowDirection = 1;
+let historySortDirection = "asc";
 const historyPages = new Map();
 const openStates = new Set(["backlog", "todo", "in_progress", "rework", "code_review", "human_review", "merging"]);
 const lifecycleStates = [
@@ -193,7 +194,12 @@ function detailView(card) {
     </div>
 
     <div class="section">
-      <h3>History</h3>
+      <div class="section-header">
+        <h3>History</h3>
+        <button id="historySortToggle" class="sort-toggle history-sort-toggle" type="button" data-direction="${escapeAttr(historySortDirection)}" title="${historySortDirection === "asc" ? "Oldest first" : "Newest first"}" aria-label="${historySortDirection === "asc" ? "Sort history, oldest first" : "Sort history, newest first"}">
+          ${sortIconSvg()}
+        </button>
+      </div>
       <div class="history">${historyHtml(card)}</div>
     </div>
   `;
@@ -230,6 +236,11 @@ function wireDetail(card) {
     if (!comment.value.trim()) return;
     await post(`/api/issues/${encodeURIComponent(card.id)}/comment`, { body: comment.value, project_slug: projectSelect.value });
     comment.value = "";
+  });
+  document.querySelector("#historySortToggle")?.addEventListener("click", () => {
+    historySortDirection = historySortDirection === "asc" ? "desc" : "asc";
+    historyPages.delete(card.id);
+    render();
   });
   for (const button of detail.querySelectorAll("button[data-history-page]")) {
     button.addEventListener("click", () => {
@@ -347,7 +358,8 @@ function tagHtml(tags) {
   return tags.filter(Boolean).map((tag) => `<span class="tag ${escapeAttr(String(tag).toLowerCase())}">${escapeHtml(label(String(tag)))}</span>`).join("");
 }
 function historyHtml(card) {
-  const all = mergedHistoryItems(card);
+  const direction = historySortDirection === "asc" ? 1 : -1;
+  const all = mergedHistoryItems(card).sort((a, b) => direction * (new Date(a.at) - new Date(b.at)));
   if (!all.length) return `<p class="meta">No steps recorded yet.</p>`;
   const page = clampHistoryPage(historyPages.get(card.id) || latestHistoryPage(all.length), all.length);
   historyPages.set(card.id, page);
@@ -389,6 +401,14 @@ function linkHistoryText(value) {
   }
   html += escapeHtml(text.slice(lastIndex));
   return html;
+}
+function sortIconSvg() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 4v15M6 19l-3-3M6 19l3-3"></path>
+      <path d="M12 6h9M12 10h7M12 14h5M12 18h3"></path>
+    </svg>
+  `;
 }
 function formatTime(iso) {
   return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
