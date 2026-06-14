@@ -1,8 +1,11 @@
+import { HISTORY_PAGE_SIZE, clampHistoryPage, historyPageItems, latestHistoryPage, mergedHistoryItems } from "./history.js";
+
 let model = null;
 let activeCardId = null;
 let filter = "open";
 let lastFlowDirection = 1;
 let historySortDirection = "asc";
+const historyPages = new Map();
 const openStates = new Set(["backlog", "todo", "in_progress", "rework", "code_review", "human_review", "merging"]);
 const lifecycleStates = [
   ["backlog", "Backlog", "B"],
@@ -18,7 +21,6 @@ const lifecycleStates = [
 const rail = document.querySelector("#rail");
 const detail = document.querySelector("#detail");
 const stats = document.querySelector("#stats");
-const filters = document.querySelector("#filters");
 const sortToggle = document.querySelector("#sortToggle");
 const projectSelect = document.querySelector("#projectSelect");
 const issueDialog = document.querySelector("#issueDialog");
@@ -33,7 +35,7 @@ projectSelect.addEventListener("change", () => {
   activeCardId = null;
   load();
 });
-filters.addEventListener("click", (event) => {
+stats.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-filter]");
   if (!button) return;
   filter = button.dataset.filter;
@@ -103,8 +105,23 @@ async function toggleSortDirection() {
 }
 
 function renderStats() {
-  const data = [["Open", model.stats.open], ["Backlog", model.stats.backlog], ["Todo", model.stats.todo], ["Progress", model.stats.in_progress], ["Rework", model.stats.rework], ["Review", model.stats.code_review], ["Human", model.stats.human_review], ["Merging", model.stats.merging], ["Done", model.stats.done], ["Total", model.stats.total]];
-  stats.innerHTML = data.map(([label, value]) => `<div class="stat"><strong>${value}</strong><span>${label}</span></div>`).join("");
+  const data = [
+    ["open", "Open", model.stats.open],
+    ["backlog", "Backlog", model.stats.backlog],
+    ["todo", "Todo", model.stats.todo],
+    ["in_progress", "Progress", model.stats.in_progress],
+    ["rework", "Rework", model.stats.rework],
+    ["code_review", "Review", model.stats.code_review],
+    ["human_review", "Human", model.stats.human_review],
+    ["merging", "Merging", model.stats.merging],
+    ["done", "Done", model.stats.done],
+    ["all", "Total", model.stats.total]
+  ];
+  stats.innerHTML = data.map(([key, label, value]) => `
+    <button type="button" class="stat ${key === filter ? "active" : ""}" data-filter="${escapeAttr(key)}" aria-pressed="${key === filter}">
+      <strong>${value}</strong><span>${label}</span>
+    </button>
+  `).join("");
 }
 
 function cardButton(card) {
@@ -132,7 +149,7 @@ function detailView(card) {
 
     <div class="section">
       <h3>Issue Context</h3>
-      <p>${escapeHtml(card.description || "No description yet.")}</p>
+      <div class="issue-context">${escapeHtml(card.description || "No description yet.")}</div>
     </div>
 
     <div class="section action-panel">
@@ -222,8 +239,15 @@ function wireDetail(card) {
   });
   document.querySelector("#historySortToggle")?.addEventListener("click", () => {
     historySortDirection = historySortDirection === "asc" ? "desc" : "asc";
+    historyPages.delete(card.id);
     render();
   });
+  for (const button of detail.querySelectorAll("button[data-history-page]")) {
+    button.addEventListener("click", () => {
+      historyPages.set(card.id, Number.parseInt(button.dataset.historyPage, 10));
+      render();
+    });
+  }
 }
 
 async function post(url, body) {
@@ -250,19 +274,21 @@ async function postStatus(cardId, status) {
 function openIssueDialog() {
   issueForm.reset();
   issueDialog.showModal();
-  issueForm.elements.title.focus();
+  issueForm.elements.issue.focus();
 }
 
 async function createIssue(event) {
   event.preventDefault();
   const data = new FormData(issueForm);
+  const issueText = String(data.get("issue") || "");
+  const issue = deriveIssueFields(issueText);
   const response = await fetch("/api/issues", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       project_slug: projectSelect.value || model.app.active_project_slug || "DL",
-      title: data.get("title"),
-      description: data.get("description")
+      title: issue.title,
+      description: issue.description
     })
   });
   const payload = await response.json();
@@ -271,6 +297,13 @@ async function createIssue(event) {
   issueDialog.close();
   renderProjectSelect();
   render();
+}
+
+function deriveIssueFields(input) {
+  const description = input.replace(/\r\n?/g, "\n").trim();
+  const firstLine = description.split("\n").map((line) => line.trim()).find(Boolean) || "Untitled issue";
+  const title = firstLine.length > 110 ? `${firstLine.slice(0, 107).trimEnd()}...` : firstLine;
+  return { title, description };
 }
 
 async function handleGlobalShortcut(event) {
@@ -314,19 +347,60 @@ function selectAfterRemoval(cardId, previousIndex) {
 }
 
 function updateFilterButtons() {
-  for (const node of filters.querySelectorAll("button")) node.classList.toggle("active", node.dataset.filter === filter);
+  for (const node of stats.querySelectorAll("button[data-filter]")) {
+    const isActive = node.dataset.filter === filter;
+    node.classList.toggle("active", isActive);
+    node.setAttribute("aria-pressed", String(isActive));
+  }
 }
 
 function tagHtml(tags) {
   return tags.filter(Boolean).map((tag) => `<span class="tag ${escapeAttr(String(tag).toLowerCase())}">${escapeHtml(label(String(tag)))}</span>`).join("");
 }
 function historyHtml(card) {
-  const events = card.events.map((event) => ({ at: event.created_at, speaker: event.actor, text: event.summary }));
-  const comments = card.comments.map((comment) => ({ at: comment.created_at, speaker: comment.author, text: comment.body }));
   const direction = historySortDirection === "asc" ? 1 : -1;
-  const all = [...events, ...comments].sort((a, b) => direction * (new Date(a.at) - new Date(b.at)));
+  const all = mergedHistoryItems(card).sort((a, b) => direction * (new Date(a.at) - new Date(b.at)));
   if (!all.length) return `<p class="meta">No steps recorded yet.</p>`;
-  return all.map((item) => `<div class="history-item"><div class="history-line">${escapeHtml(item.speaker)} · ${escapeHtml(formatTime(item.at))}</div><div class="history-text">${escapeHtml(item.text)}</div></div>`).join("");
+  const page = clampHistoryPage(historyPages.get(card.id) || latestHistoryPage(all.length), all.length);
+  historyPages.set(card.id, page);
+  const items = historyPageItems(all, page);
+  const controls = all.length > HISTORY_PAGE_SIZE ? historyPaginationHtml(page, latestHistoryPage(all.length), all.length) : "";
+  return `${items.map(historyItemHtml).join("")}${controls}`;
+}
+function historyItemHtml(item) {
+  return `<div class="history-item"><div class="history-line">${escapeHtml(item.speaker)} · ${escapeHtml(formatTime(item.at))}</div><div class="history-text">${linkHistoryText(item.text)}</div></div>`;
+}
+function historyPaginationHtml(page, pageCount, totalItems) {
+  const from = ((page - 1) * HISTORY_PAGE_SIZE) + 1;
+  const to = Math.min(totalItems, page * HISTORY_PAGE_SIZE);
+  const older = page > 1 ? `<button type="button" data-history-page="${page - 1}">Older</button>` : `<button type="button" disabled>Older</button>`;
+  const newer = page < pageCount ? `<button type="button" data-history-page="${page + 1}">Newer</button>` : `<button type="button" disabled>Newer</button>`;
+  return `
+    <div class="history-pagination" aria-label="History pagination">
+      ${older}
+      <span>Items ${from}-${to} of ${totalItems}</span>
+      ${newer}
+    </div>
+  `;
+}
+function linkHistoryText(value) {
+  const text = String(value ?? "");
+  const urlPattern = /\bhttps?:\/\/[^\s<>"']+/g;
+  let html = "";
+  let lastIndex = 0;
+  for (const match of text.matchAll(urlPattern)) {
+    const rawUrl = match[0];
+    const start = match.index ?? 0;
+    const trailing = rawUrl.match(/[.,;:!?)]*$/)?.[0] || "";
+    const url = rawUrl.slice(0, rawUrl.length - trailing.length);
+    if (!url) continue;
+    html += escapeHtml(text.slice(lastIndex, start));
+    html += `<a href="${escapeAttr(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a>`;
+    html += escapeHtml(trailing);
+    lastIndex = start + rawUrl.length;
+  }
+  html += escapeHtml(text.slice(lastIndex));
+  return html;
 }
 function sortIconSvg() {
   return `
@@ -352,6 +426,11 @@ function escapeHtml(value) {
 }
 function escapeAttr(value) {
   return escapeHtml(value);
+}
+
+if (globalThis.__DESKTOP_LINEAR_TESTS__) {
+  globalThis.__DESKTOP_LINEAR_TESTS__.historyHtml = historyHtml;
+  globalThis.__DESKTOP_LINEAR_TESTS__.linkHistoryText = linkHistoryText;
 }
 
 load();
