@@ -342,7 +342,26 @@ function historyHtml(card) {
   const comments = card.comments.map((comment) => ({ at: comment.created_at, speaker: comment.author, text: comment.body }));
   const all = [...events, ...comments].sort((a, b) => new Date(a.at) - new Date(b.at));
   if (!all.length) return `<p class="meta">No steps recorded yet.</p>`;
-  return all.map((item) => `<div class="history-item"><div class="history-line">${escapeHtml(item.speaker)} · ${escapeHtml(formatTime(item.at))}</div><div class="history-text">${escapeHtml(item.text)}</div></div>`).join("");
+  return all.map((item) => `<div class="history-item"><div class="history-line">${escapeHtml(item.speaker)} · ${escapeHtml(formatTime(item.at))}</div><div class="history-text">${linkHistoryText(item.text)}</div></div>`).join("");
+}
+function linkHistoryText(value) {
+  const text = String(value ?? "");
+  const urlPattern = /\bhttps?:\/\/[^\s<>"']+/g;
+  let html = "";
+  let lastIndex = 0;
+  for (const match of text.matchAll(urlPattern)) {
+    const rawUrl = match[0];
+    const start = match.index ?? 0;
+    const trailing = rawUrl.match(/[.,;:!?)]*$/)?.[0] || "";
+    const url = rawUrl.slice(0, rawUrl.length - trailing.length);
+    if (!url) continue;
+    html += escapeHtml(text.slice(lastIndex, start));
+    html += `<a href="${escapeAttr(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a>`;
+    html += escapeHtml(trailing);
+    lastIndex = start + rawUrl.length;
+  }
+  html += escapeHtml(text.slice(lastIndex));
+  return html;
 }
 function formatTime(iso) {
   return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
@@ -360,6 +379,11 @@ function escapeHtml(value) {
 }
 function escapeAttr(value) {
   return escapeHtml(value);
+}
+
+if (globalThis.__DESKTOP_LINEAR_TESTS__) {
+  globalThis.__DESKTOP_LINEAR_TESTS__.historyHtml = historyHtml;
+  globalThis.__DESKTOP_LINEAR_TESTS__.linkHistoryText = linkHistoryText;
 }
 
 load();

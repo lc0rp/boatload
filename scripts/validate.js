@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { runInNewContext } from "node:vm";
 
 const port = Number.parseInt(process.env.PORT || "4989", 10);
 const base = `http://127.0.0.1:${port}`;
@@ -117,11 +118,62 @@ try {
   assert(events.includes("workpad_created") && events.includes("workpad_updated"), "expected workpad upsert events in append-only log");
   const codexTasks = await readFile(codexTasksPath, "utf8");
   assert(codexTasks.includes("next review step"), "expected Codex task queue mirror");
+  await validateHistoryLinks();
 
-  console.log("Validation passed: project IDs, lifecycle states, comments, workpad upsert, talk-to-card Codex queue, GitHub events, restart persistence, and event log all work.");
+  console.log("Validation passed: project IDs, lifecycle states, comments, workpad upsert, clickable history links, talk-to-card Codex queue, GitHub events, restart persistence, and event log all work.");
 } finally {
   if (server) server.kill("SIGTERM");
   await rm(validationRoot, { recursive: true, force: true });
+}
+
+async function validateHistoryLinks() {
+  const element = {
+    dataset: {},
+    value: "",
+    classList: { toggle() {} },
+    addEventListener() {},
+    querySelector() { return element; },
+    querySelectorAll() { return []; },
+    setAttribute() {},
+    focus() {},
+    close() {},
+    showModal() {},
+    contains() { return false; },
+    scrollIntoView() {}
+  };
+  const sandbox = {
+    __DESKTOP_LINEAR_TESTS__: {},
+    document: {
+      activeElement: null,
+      addEventListener() {},
+      querySelector() { return element; }
+    },
+    Element: class Element {},
+    fetch: async () => ({
+      json: async () => ({
+        app: { active_project_slug: "VAL", sort_direction: "desc" },
+        projects: [{ slug: "VAL", name: "Validation Project" }],
+        stats: { open: 0, backlog: 0, todo: 0, in_progress: 0, rework: 0, code_review: 0, human_review: 0, merging: 0, done: 0, total: 0 },
+        cards: []
+      })
+    }),
+    FormData,
+    Intl,
+    console
+  };
+  sandbox.globalThis = sandbox;
+  const appScript = await readFile(path.join(new URL("..", import.meta.url).pathname, "public", "app.js"), "utf8");
+  runInNewContext(appScript, sandbox);
+  const historyHtml = sandbox.__DESKTOP_LINEAR_TESTS__.historyHtml;
+  assert(typeof historyHtml === "function", "expected history renderer test hook");
+  const html = historyHtml({
+    events: [{ created_at: "2026-01-01T00:00:00.000Z", actor: "GitHub", summary: "Opened https://github.com/example/repo/pull/1." }],
+    comments: [{ created_at: "2026-01-01T00:01:00.000Z", author: "User", body: "Review <script>alert(1)</script> at https://linear.app/test" }]
+  });
+  assert(html.includes('<a href="https://github.com/example/repo/pull/1" target="_blank" rel="noreferrer">https://github.com/example/repo/pull/1</a>.'), "expected history URL with trailing punctuation to become a link");
+  assert(html.includes('<a href="https://linear.app/test" target="_blank" rel="noreferrer">https://linear.app/test</a>'), "expected comment URL to become a link");
+  assert(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"), "expected unsafe history text to remain escaped");
+  assert(!html.includes("<script>"), "expected history renderer not to emit script tags");
 }
 
 function startServer() {
