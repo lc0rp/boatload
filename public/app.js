@@ -20,7 +20,6 @@ const lifecycleStates = [
 const rail = document.querySelector("#rail");
 const detail = document.querySelector("#detail");
 const stats = document.querySelector("#stats");
-const filters = document.querySelector("#filters");
 const sortToggle = document.querySelector("#sortToggle");
 const projectSelect = document.querySelector("#projectSelect");
 const issueDialog = document.querySelector("#issueDialog");
@@ -35,7 +34,7 @@ projectSelect.addEventListener("change", () => {
   activeCardId = null;
   load();
 });
-filters.addEventListener("click", (event) => {
+stats.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-filter]");
   if (!button) return;
   filter = button.dataset.filter;
@@ -105,8 +104,23 @@ async function toggleSortDirection() {
 }
 
 function renderStats() {
-  const data = [["Open", model.stats.open], ["Backlog", model.stats.backlog], ["Todo", model.stats.todo], ["Progress", model.stats.in_progress], ["Rework", model.stats.rework], ["Review", model.stats.code_review], ["Human", model.stats.human_review], ["Merging", model.stats.merging], ["Done", model.stats.done], ["Total", model.stats.total]];
-  stats.innerHTML = data.map(([label, value]) => `<div class="stat"><strong>${value}</strong><span>${label}</span></div>`).join("");
+  const data = [
+    ["open", "Open", model.stats.open],
+    ["backlog", "Backlog", model.stats.backlog],
+    ["todo", "Todo", model.stats.todo],
+    ["in_progress", "Progress", model.stats.in_progress],
+    ["rework", "Rework", model.stats.rework],
+    ["code_review", "Review", model.stats.code_review],
+    ["human_review", "Human", model.stats.human_review],
+    ["merging", "Merging", model.stats.merging],
+    ["done", "Done", model.stats.done],
+    ["all", "Total", model.stats.total]
+  ];
+  stats.innerHTML = data.map(([key, label, value]) => `
+    <button type="button" class="stat ${key === filter ? "active" : ""}" data-filter="${escapeAttr(key)}" aria-pressed="${key === filter}">
+      <strong>${value}</strong><span>${label}</span>
+    </button>
+  `).join("");
 }
 
 function cardButton(card) {
@@ -134,7 +148,7 @@ function detailView(card) {
 
     <div class="section">
       <h3>Issue Context</h3>
-      <p>${escapeHtml(card.description || "No description yet.")}</p>
+      <div class="issue-context">${escapeHtml(card.description || "No description yet.")}</div>
     </div>
 
     <div class="section action-panel">
@@ -249,19 +263,21 @@ async function postStatus(cardId, status) {
 function openIssueDialog() {
   issueForm.reset();
   issueDialog.showModal();
-  issueForm.elements.title.focus();
+  issueForm.elements.issue.focus();
 }
 
 async function createIssue(event) {
   event.preventDefault();
   const data = new FormData(issueForm);
+  const issueText = String(data.get("issue") || "");
+  const issue = deriveIssueFields(issueText);
   const response = await fetch("/api/issues", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       project_slug: projectSelect.value || model.app.active_project_slug || "DL",
-      title: data.get("title"),
-      description: data.get("description")
+      title: issue.title,
+      description: issue.description
     })
   });
   const payload = await response.json();
@@ -270,6 +286,13 @@ async function createIssue(event) {
   issueDialog.close();
   renderProjectSelect();
   render();
+}
+
+function deriveIssueFields(input) {
+  const description = input.replace(/\r\n?/g, "\n").trim();
+  const firstLine = description.split("\n").map((line) => line.trim()).find(Boolean) || "Untitled issue";
+  const title = firstLine.length > 110 ? `${firstLine.slice(0, 107).trimEnd()}...` : firstLine;
+  return { title, description };
 }
 
 async function handleGlobalShortcut(event) {
@@ -313,7 +336,11 @@ function selectAfterRemoval(cardId, previousIndex) {
 }
 
 function updateFilterButtons() {
-  for (const node of filters.querySelectorAll("button")) node.classList.toggle("active", node.dataset.filter === filter);
+  for (const node of stats.querySelectorAll("button[data-filter]")) {
+    const isActive = node.dataset.filter === filter;
+    node.classList.toggle("active", isActive);
+    node.setAttribute("aria-pressed", String(isActive));
+  }
 }
 
 function tagHtml(tags) {
@@ -329,7 +356,7 @@ function historyHtml(card) {
   return `${items.map(historyItemHtml).join("")}${controls}`;
 }
 function historyItemHtml(item) {
-  return `<div class="history-item"><div class="history-line">${escapeHtml(item.speaker)} · ${escapeHtml(formatTime(item.at))}</div><div class="history-text">${escapeHtml(item.text)}</div></div>`;
+  return `<div class="history-item"><div class="history-line">${escapeHtml(item.speaker)} · ${escapeHtml(formatTime(item.at))}</div><div class="history-text">${linkHistoryText(item.text)}</div></div>`;
 }
 function historyPaginationHtml(page, pageCount, totalItems) {
   const from = ((page - 1) * HISTORY_PAGE_SIZE) + 1;
@@ -343,6 +370,25 @@ function historyPaginationHtml(page, pageCount, totalItems) {
       ${newer}
     </div>
   `;
+}
+function linkHistoryText(value) {
+  const text = String(value ?? "");
+  const urlPattern = /\bhttps?:\/\/[^\s<>"']+/g;
+  let html = "";
+  let lastIndex = 0;
+  for (const match of text.matchAll(urlPattern)) {
+    const rawUrl = match[0];
+    const start = match.index ?? 0;
+    const trailing = rawUrl.match(/[.,;:!?)]*$/)?.[0] || "";
+    const url = rawUrl.slice(0, rawUrl.length - trailing.length);
+    if (!url) continue;
+    html += escapeHtml(text.slice(lastIndex, start));
+    html += `<a href="${escapeAttr(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a>`;
+    html += escapeHtml(trailing);
+    lastIndex = start + rawUrl.length;
+  }
+  html += escapeHtml(text.slice(lastIndex));
+  return html;
 }
 function formatTime(iso) {
   return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
@@ -360,6 +406,11 @@ function escapeHtml(value) {
 }
 function escapeAttr(value) {
   return escapeHtml(value);
+}
+
+if (globalThis.__DESKTOP_LINEAR_TESTS__) {
+  globalThis.__DESKTOP_LINEAR_TESTS__.historyHtml = historyHtml;
+  globalThis.__DESKTOP_LINEAR_TESTS__.linkHistoryText = linkHistoryText;
 }
 
 load();
