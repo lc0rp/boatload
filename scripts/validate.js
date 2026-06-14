@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { HISTORY_PAGE_SIZE, clampHistoryPage, historyPageItems, latestHistoryPage, mergedHistoryItems } from "../public/history.js";
 import { runInNewContext } from "node:vm";
 
 const port = Number.parseInt(process.env.PORT || "4989", 10);
@@ -118,9 +119,10 @@ try {
   assert(events.includes("workpad_created") && events.includes("workpad_updated"), "expected workpad upsert events in append-only log");
   const codexTasks = await readFile(codexTasksPath, "utf8");
   assert(codexTasks.includes("next review step"), "expected Codex task queue mirror");
+  validateHistoryPagination();
   await validateHistoryLinks();
 
-  console.log("Validation passed: project IDs, lifecycle states, comments, workpad upsert, clickable history links, talk-to-card Codex queue, GitHub events, restart persistence, and event log all work.");
+  console.log("Validation passed: project IDs, lifecycle states, comments, workpad upsert, clickable paginated history, talk-to-card Codex queue, GitHub events, restart persistence, and event log all work.");
 } finally {
   if (server) server.kill("SIGTERM");
   await rm(validationRoot, { recursive: true, force: true });
@@ -158,11 +160,17 @@ async function validateHistoryLinks() {
       })
     }),
     FormData,
+    HISTORY_PAGE_SIZE,
+    clampHistoryPage,
+    historyPageItems,
+    latestHistoryPage,
+    mergedHistoryItems,
     Intl,
     console
   };
   sandbox.globalThis = sandbox;
-  const appScript = await readFile(path.join(new URL("..", import.meta.url).pathname, "public", "app.js"), "utf8");
+  const appScript = (await readFile(path.join(new URL("..", import.meta.url).pathname, "public", "app.js"), "utf8"))
+    .replace('import { HISTORY_PAGE_SIZE, clampHistoryPage, historyPageItems, latestHistoryPage, mergedHistoryItems } from "./history.js";', "");
   runInNewContext(appScript, sandbox);
   const historyHtml = sandbox.__DESKTOP_LINEAR_TESTS__.historyHtml;
   assert(typeof historyHtml === "function", "expected history renderer test hook");
@@ -244,4 +252,26 @@ async function validateNewIssueDialog() {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function validateHistoryPagination() {
+  const card = {
+    events: Array.from({ length: 11 }, (_, index) => ({
+      created_at: `2026-01-01T00:${String(index).padStart(2, "0")}:00.000Z`,
+      actor: "event",
+      summary: `event-${index}`
+    })),
+    comments: Array.from({ length: 2 }, (_, index) => ({
+      created_at: `2026-01-01T00:${String(index + 11).padStart(2, "0")}:00.000Z`,
+      author: "comment",
+      body: `comment-${index}`
+    }))
+  };
+  const items = mergedHistoryItems(card);
+  assert(items.length === 13, "expected history merge to include events and comments");
+  assert(latestHistoryPage(items.length) === 2, "expected 13 history items to produce two pages");
+  assert(historyPageItems(items, latestHistoryPage(items.length)).length === 3, "expected latest history page to contain remaining newest items");
+  assert(historyPageItems(items, 1).length === HISTORY_PAGE_SIZE, "expected first history page to contain 10 items");
+  assert(clampHistoryPage(99, items.length) === 2, "expected high history page to clamp to last page");
+  assert(clampHistoryPage(0, items.length) === 1, "expected low history page to clamp to first page");
 }

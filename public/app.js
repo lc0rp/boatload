@@ -1,7 +1,10 @@
+import { HISTORY_PAGE_SIZE, clampHistoryPage, historyPageItems, latestHistoryPage, mergedHistoryItems } from "./history.js";
+
 let model = null;
 let activeCardId = null;
 let filter = "open";
 let lastFlowDirection = 1;
+const historyPages = new Map();
 const openStates = new Set(["backlog", "todo", "in_progress", "rework", "code_review", "human_review", "merging"]);
 const lifecycleStates = [
   ["backlog", "Backlog", "B"],
@@ -228,6 +231,12 @@ function wireDetail(card) {
     await post(`/api/issues/${encodeURIComponent(card.id)}/comment`, { body: comment.value, project_slug: projectSelect.value });
     comment.value = "";
   });
+  for (const button of detail.querySelectorAll("button[data-history-page]")) {
+    button.addEventListener("click", () => {
+      historyPages.set(card.id, Number.parseInt(button.dataset.historyPage, 10));
+      render();
+    });
+  }
 }
 
 async function post(url, body) {
@@ -338,11 +347,29 @@ function tagHtml(tags) {
   return tags.filter(Boolean).map((tag) => `<span class="tag ${escapeAttr(String(tag).toLowerCase())}">${escapeHtml(label(String(tag)))}</span>`).join("");
 }
 function historyHtml(card) {
-  const events = card.events.map((event) => ({ at: event.created_at, speaker: event.actor, text: event.summary }));
-  const comments = card.comments.map((comment) => ({ at: comment.created_at, speaker: comment.author, text: comment.body }));
-  const all = [...events, ...comments].sort((a, b) => new Date(a.at) - new Date(b.at));
+  const all = mergedHistoryItems(card);
   if (!all.length) return `<p class="meta">No steps recorded yet.</p>`;
-  return all.map((item) => `<div class="history-item"><div class="history-line">${escapeHtml(item.speaker)} · ${escapeHtml(formatTime(item.at))}</div><div class="history-text">${linkHistoryText(item.text)}</div></div>`).join("");
+  const page = clampHistoryPage(historyPages.get(card.id) || latestHistoryPage(all.length), all.length);
+  historyPages.set(card.id, page);
+  const items = historyPageItems(all, page);
+  const controls = all.length > HISTORY_PAGE_SIZE ? historyPaginationHtml(page, latestHistoryPage(all.length), all.length) : "";
+  return `${items.map(historyItemHtml).join("")}${controls}`;
+}
+function historyItemHtml(item) {
+  return `<div class="history-item"><div class="history-line">${escapeHtml(item.speaker)} · ${escapeHtml(formatTime(item.at))}</div><div class="history-text">${linkHistoryText(item.text)}</div></div>`;
+}
+function historyPaginationHtml(page, pageCount, totalItems) {
+  const from = ((page - 1) * HISTORY_PAGE_SIZE) + 1;
+  const to = Math.min(totalItems, page * HISTORY_PAGE_SIZE);
+  const older = page > 1 ? `<button type="button" data-history-page="${page - 1}">Older</button>` : `<button type="button" disabled>Older</button>`;
+  const newer = page < pageCount ? `<button type="button" data-history-page="${page + 1}">Newer</button>` : `<button type="button" disabled>Newer</button>`;
+  return `
+    <div class="history-pagination" aria-label="History pagination">
+      ${older}
+      <span>Items ${from}-${to} of ${totalItems}</span>
+      ${newer}
+    </div>
+  `;
 }
 function linkHistoryText(value) {
   const text = String(value ?? "");

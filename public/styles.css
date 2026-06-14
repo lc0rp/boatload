@@ -219,6 +219,33 @@ select { border: 1px solid var(--line); background: var(--panel); }
 .history { display: grid; gap: 8px; }
 .history-item { border-left: 3px solid var(--line); padding-left: 10px; }
 .history-text { white-space: pre-wrap; }
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.history-pagination button {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  background: #fffaf1;
+  color: var(--ink);
+  padding: 0 12px;
+  cursor: pointer;
+}
+.history-pagination button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.55;
+}
+.history-pagination button:not(:disabled):hover {
+  background: var(--ink);
+  color: var(--panel);
+}
 .empty { display: grid; place-items: center; min-height: 240px; color: var(--muted); }
 .modal {
   width: min(720px, calc(100vw - 28px));
