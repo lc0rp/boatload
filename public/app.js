@@ -223,12 +223,13 @@ function cardButton(card) {
 }
 
 function detailView(card) {
+  const canEditIssueText = card.status !== "done";
   return `
     <div class="detail-header">
       <div>
         <div class="tags">${tagHtml([card.status, ...card.labels])}</div>
         <div class="source">${escapeHtml(card.project_name)} · ${escapeHtml(card.key)} · Updated ${escapeHtml(developer-machine.local_time)}</div>
-        <h2>${escapeHtml(card.title)}</h2>
+        <h2${canEditIssueText ? ' class="editable-field" data-edit-field="title" tabindex="0" role="button" title="Edit title"' : ""}>${escapeHtml(card.title)}</h2>
         <div class="source">${escapeHtml(card.branch || "No branch")} ${card.worktree ? `· ${escapeHtml(card.worktree)}` : ""}</div>
       </div>
       <span class="pill">${escapeHtml(card.status_label)}</span>
@@ -236,7 +237,7 @@ function detailView(card) {
 
     <div class="section">
       <h3>Issue Context</h3>
-      <div class="issue-context">${escapeHtml(card.description || "No description yet.")}</div>
+      <div class="issue-context${canEditIssueText ? " editable-field" : ""}"${canEditIssueText ? ' data-edit-field="description" tabindex="0" role="button" title="Edit issue context"' : ""}>${escapeHtml(card.description || "No description yet.")}</div>
     </div>
 
     <div class="section action-panel">
@@ -301,6 +302,14 @@ function stateButton(status, label, key, className = "", currentStatus = "") {
 
 function wireDetail(card) {
   if (!card) return;
+  for (const field of detail.querySelectorAll("[data-edit-field]")) {
+    field.addEventListener("click", () => startIssueFieldEdit(card, field.dataset.editField));
+    field.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      startIssueFieldEdit(card, field.dataset.editField);
+    });
+  }
   for (const button of detail.querySelectorAll("button[data-status]")) {
     button.addEventListener("click", () => postStatus(card.id, button.dataset.status));
   }
@@ -335,6 +344,56 @@ function wireDetail(card) {
       render();
     });
   }
+}
+
+function startIssueFieldEdit(card, field) {
+  if (card.status === "done") return;
+  const node = detail.querySelector(`[data-edit-field="${field}"]`);
+  if (!node || detail.querySelector("[data-editing-field]")) return;
+  const isTitle = field === "title";
+  const currentValue = isTitle ? card.title : card.description || "";
+  const editor = document.createElement(isTitle ? "input" : "textarea");
+  editor.dataset.editingField = field;
+  editor.className = `inline-editor ${isTitle ? "title-editor" : "context-editor"}`;
+  editor.value = currentValue;
+  editor.setAttribute("aria-label", isTitle ? "Issue title" : "Issue context");
+  if (!isTitle) editor.rows = Math.max(3, Math.min(12, currentValue.split("\n").length + 1));
+  node.replaceWith(editor);
+  editor.focus();
+  editor.select();
+
+  let finished = false;
+  const finish = async (shouldSave) => {
+    if (finished) return;
+    finished = true;
+    const nextValue = editor.value.replace(/\r\n?/g, "\n").trim();
+    if (!shouldSave || nextValue === currentValue || (isTitle && !nextValue)) {
+      render();
+      return;
+    }
+    await saveIssueField(card, field, nextValue);
+  };
+
+  editor.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finish(false);
+      return;
+    }
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      finish(true);
+    }
+  });
+  editor.addEventListener("blur", () => finish(true));
+}
+
+async function saveIssueField(card, field, value) {
+  await post(`/api/issues/${encodeURIComponent(card.id)}/patch`, {
+    [field]: value,
+    actor: "User",
+    project_slug: selectedProjectSlug()
+  });
 }
 
 async function post(url, body) {

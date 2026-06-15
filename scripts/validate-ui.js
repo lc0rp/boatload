@@ -14,11 +14,17 @@ assert(appJs.includes("[\"all\", \"Total\""), "expected Total counter to map to 
 assert(/<button[^>]+class="stat/.test(appJs), "expected stats renderer to output clickable stat buttons");
 assert(appJs.includes("data-filter="), "expected stat buttons to expose data-filter attributes");
 assert(appJs.includes("aria-pressed"), "expected stat buttons to expose pressed state");
+assert(appJs.includes("startIssueFieldEdit"), "expected issue detail fields to enter inline edit mode");
+assert(appJs.includes("saveIssueField"), "expected issue detail inline edits to persist through the patch endpoint");
+assert(appJs.includes('card.status !== "done"'), "expected Done issues to suppress inline detail editing");
+assert(appJs.includes('actor: "User"'), "expected inline edits to identify the editor in history");
 assert(stylesCss.includes(".stat.active"), "expected active status counter styling");
 assert(stylesCss.includes(".stat:hover"), "expected status counters to have hover affordance");
 assert(!stylesCss.includes(".segmented button.active"), "expected old segmented-tab active styling to be removed");
+assert(stylesCss.includes(".editable-field"), "expected editable issue fields to have a hover/focus affordance");
+assert(stylesCss.includes(".inline-editor"), "expected inline issue editors to share stable styling");
 
-console.log("UI validation passed: status counters are the only status filter surface.");
+console.log("UI validation passed: status counters and issue detail inline editing are wired.");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
