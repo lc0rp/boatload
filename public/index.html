@@ -18,29 +18,17 @@
       </header>
 
       <section class="toolbar" aria-label="Issue controls">
-        <div class="segmented" id="filters">
-          <button data-filter="open" class="active">Open</button>
-          <button data-filter="backlog">Backlog</button>
-          <button data-filter="todo">Todo</button>
-          <button data-filter="in_progress">Progress</button>
-          <button data-filter="rework">Rework</button>
-          <button data-filter="code_review">Review</button>
-          <button data-filter="human_review">Human</button>
-          <button data-filter="merging">Merging</button>
-          <button data-filter="done">Done</button>
-          <button data-filter="all">All</button>
-          <button id="sortToggle" class="sort-toggle" type="button" title="Sort by updated date" aria-label="Sort by updated date">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 4v15M6 19l-3-3M6 19l3-3"></path>
-              <path d="M12 6h9M12 10h7M12 14h5M12 18h3"></path>
-            </svg>
-          </button>
-        </div>
         <div class="toolbar-actions">
           <div class="project-combobox">
             <input id="projectSelect" aria-label="Project" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="projectOptions">
             <div id="projectOptions" class="project-options" role="listbox" hidden></div>
           </div>
+          <button id="sortToggle" class="icon-button sort-toggle" type="button" title="Sort by updated date" aria-label="Sort by updated date">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 4v15M6 19l-3-3M6 19l3-3"></path>
+              <path d="M12 6h9M12 10h7M12 14h5M12 18h3"></path>
+            </svg>
+          </button>
           <button id="addIssue" class="icon-button" title="Add issue [+]" aria-label="Add issue">+</button>
           <button id="refresh" class="icon-button" title="Refresh [R]">Refresh <span class="shortcut">R</span></button>
         </div>
@@ -59,12 +47,8 @@
           <button type="button" value="cancel" aria-label="Close">Close</button>
         </header>
         <label>
-          Title
-          <input name="title" required placeholder="Implement Desktop Symphony dispatch view">
-        </label>
-        <label>
-          Description
-          <textarea name="description" placeholder="Acceptance criteria, notes, repo path, or branch context"></textarea>
+          Issue
+          <textarea name="issue" required placeholder="Describe the task. Include context, acceptance criteria, links, or repo notes."></textarea>
         </label>
         <footer>
           <button type="button" value="cancel">Cancel</button>
