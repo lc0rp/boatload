@@ -178,7 +178,7 @@ select { border: 1px solid var(--line); background: var(--panel); }
 }
 .tag.rework, .tag.canceled { border-color: var(--red); color: var(--red); }
 .tag.backlog { border-color: var(--muted); color: var(--muted); }
-.tag.code_review, .tag.human_review, .tag.merging { border-color: var(--blue); color: var(--blue); }
+.tag.code_review, .tag.human_review, .tag.merging, .tag.codex { border-color: var(--blue); color: var(--blue); }
 .detail {
   overflow: auto;
   border: 1px solid var(--line);

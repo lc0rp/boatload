@@ -151,6 +151,7 @@ function visibleCards() {
   if (!model) return [];
   if (filter === "all") return model.cards;
   if (filter === "open") return model.cards.filter((card) => openStates.has(card.status));
+  if (filter === "codex") return model.cards.filter((card) => card.stage === "codex");
   return model.cards.filter((card) => card.status === filter);
 }
 
@@ -194,6 +195,7 @@ async function toggleSortDirection() {
 function renderStats() {
   const data = [
     ["open", "Open", model.stats.open],
+    ["codex", "Codex", model.stats.codex],
     ["backlog", "Backlog", model.stats.backlog],
     ["todo", "Todo", model.stats.todo],
     ["in_progress", "Progress", model.stats.in_progress],
@@ -214,9 +216,9 @@ function renderStats() {
 function cardButton(card) {
   return `
     <button class="card ${card.id === activeCardId ? "active" : ""}" data-id="${escapeAttr(card.id)}">
-      <div class="tags">${tagHtml([card.status, ...card.labels])}</div>
+      <div class="tags">${tagHtml([card.stage || card.status, ...card.labels])}</div>
       <h2><span class="key">${escapeHtml(card.key)}</span> ${escapeHtml(card.title)}</h2>
-      <div class="meta">${escapeHtml(developer-machine.local_time)} · ${escapeHtml(card.status_label)} · ${escapeHtml(card.priority)}</div>
+      <div class="meta">${escapeHtml(developer-machine.local_time)} · ${escapeHtml(card.stage_label || card.status_label)} · ${escapeHtml(card.priority)}</div>
       <div class="card-summary">${escapeHtml(card.summary)}</div>
     </button>
   `;
@@ -226,12 +228,12 @@ function detailView(card) {
   return `
     <div class="detail-header">
       <div>
-        <div class="tags">${tagHtml([card.status, ...card.labels])}</div>
+        <div class="tags">${tagHtml([card.stage || card.status, ...card.labels])}</div>
         <div class="source">${escapeHtml(card.project_name)} · ${escapeHtml(card.key)} · Updated ${escapeHtml(developer-machine.local_time)}</div>
         <h2>${escapeHtml(card.title)}</h2>
         <div class="source">${escapeHtml(card.branch || "No branch")} ${card.worktree ? `· ${escapeHtml(card.worktree)}` : ""}</div>
       </div>
-      <span class="pill">${escapeHtml(card.status_label)}</span>
+      <span class="pill">${escapeHtml(card.stage_label || card.status_label)}</span>
     </div>
 
     <div class="section">
