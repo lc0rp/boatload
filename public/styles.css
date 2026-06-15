@@ -57,6 +57,9 @@ h1 { font-size: 40px; line-height: 1; }
 }
 .stat strong { display: block; font-size: 18px; }
 .stat span, .meta, .source, .history-line { color: var(--muted); font-size: 13px; }
+.source, .issue-context, .history-text, .history-text a, .section p, .card-summary {
+  overflow-wrap: anywhere;
+}
 .stat.active,
 .stat:hover {
   border-color: var(--accent);
@@ -155,8 +158,9 @@ select { border: 1px solid var(--line); background: var(--panel); }
   grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
   gap: 18px;
   height: calc(100vh - 148px);
+  min-width: 0;
 }
-.rail { overflow: auto; padding-right: 4px; }
+.rail { overflow: auto; padding-right: 4px; min-width: 0; }
 .card {
   width: 100%;
   text-align: left;
@@ -185,6 +189,7 @@ select { border: 1px solid var(--line); background: var(--panel); }
   background: rgba(255, 252, 245, 0.94);
   box-shadow: var(--shadow);
   padding: 22px;
+  min-width: 0;
 }
 .detail-header {
   display: flex;
@@ -289,6 +294,7 @@ select { border: 1px solid var(--line); background: var(--panel); }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
   border-top: 1px solid var(--line);
   padding-top: 10px;
@@ -340,6 +346,14 @@ select { border: 1px solid var(--line); background: var(--panel); }
   .status-strip { justify-content: flex-start; }
   .stat { flex: 1 1 88px; }
   .layout { height: auto; grid-template-columns: 1fr; }
-  .rail, .detail { max-height: none; overflow: visible; }
+  .rail, .detail { max-height: none; overflow: visible; width: 100%; }
   .detail { order: -1; }
+  .detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .detail-header > div { min-width: 0; }
+  .detail h2 { font-size: 26px; }
+  .talk-box, .comment-box { grid-template-columns: 1fr; }
+  .talk-box button, .comment-box button { width: 100%; }
 }

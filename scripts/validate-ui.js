@@ -17,6 +17,10 @@ assert(appJs.includes("aria-pressed"), "expected stat buttons to expose pressed 
 assert(stylesCss.includes(".stat.active"), "expected active status counter styling");
 assert(stylesCss.includes(".stat:hover"), "expected status counters to have hover affordance");
 assert(!stylesCss.includes(".segmented button.active"), "expected old segmented-tab active styling to be removed");
+assert(stylesCss.includes("overflow-wrap: anywhere"), "expected long mobile text to wrap instead of forcing horizontal scroll");
+assert(stylesCss.includes(".layout { height: auto; grid-template-columns: 1fr; }"), "expected mobile layout to collapse to one column");
+assert(stylesCss.includes(".talk-box, .comment-box { grid-template-columns: 1fr; }"), "expected mobile input actions to stack vertically");
+assert(stylesCss.includes(".rail, .detail { max-height: none; overflow: visible; width: 100%; }"), "expected mobile panes to stay within viewport width");
 
 console.log("UI validation passed: status counters are the only status filter surface.");
 
