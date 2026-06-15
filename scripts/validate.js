@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { parseProjectCandidate, projectCreateLabel } from "../public/project-selector.js";
 import { HISTORY_PAGE_SIZE, clampHistoryPage, historyPageItems, latestHistoryPage, mergedHistoryItems } from "../public/history.js";
 import { runInNewContext } from "node:vm";
 
@@ -21,6 +22,8 @@ try {
   await validateNewIssueDialog();
 
   await post("/api/projects", { slug: "VAL", name: "Validation Project" });
+  assert(projectCreateLabel(parseProjectCandidate("New Project")) === "Create \"New Project, NEW\"", "expected project selector to guess a three-letter project stub");
+  assert(projectCreateLabel(parseProjectCandidate("Customer Ops, COPS")) === "Create \"Customer Ops, COPS\"", "expected project selector to keep an explicit typed project stub");
   await post("/api/projects", { slug: "ALT", name: "Alternate Project" });
   const created = await post("/api/issues", {
     project_slug: "VAL",
@@ -174,11 +177,15 @@ async function validateHistoryLinks() {
     FormData,
     HISTORY_PAGE_SIZE,
     clampHistoryPage,
+    findProject: (projects, value) => projects.find((project) => project.slug === value || `${project.slug} - ${project.name}` === value),
     historyPageItems,
     latestHistoryPage,
     mergedHistoryItems,
     Intl,
     localStorage: { getItem() { return ""; }, setItem() {} },
+    parseProjectCandidate: () => null,
+    projectCreateLabel: () => "",
+    projectDisplayName: (project) => project ? `${project.slug} - ${project.name}` : "",
     URL,
     URLSearchParams,
     window: {
@@ -189,6 +196,7 @@ async function validateHistoryLinks() {
   };
   sandbox.globalThis = sandbox;
   const appScript = (await readFile(path.join(new URL("..", import.meta.url).pathname, "public", "app.js"), "utf8"))
+    .replace('import { findProject, parseProjectCandidate, projectCreateLabel, projectDisplayName } from "./project-selector.js";', "")
     .replace('import { HISTORY_PAGE_SIZE, clampHistoryPage, historyPageItems, latestHistoryPage, mergedHistoryItems } from "./history.js";', "");
   runInNewContext(appScript, sandbox);
   const historyHtml = sandbox.__DESKTOP_LINEAR_TESTS__.historyHtml;

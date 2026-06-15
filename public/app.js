@@ -1,3 +1,4 @@
+import { findProject, parseProjectCandidate, projectCreateLabel, projectDisplayName } from "./project-selector.js";
 import { HISTORY_PAGE_SIZE, clampHistoryPage, historyPageItems, latestHistoryPage, mergedHistoryItems } from "./history.js";
 
 let model = null;
@@ -24,6 +25,7 @@ const detail = document.querySelector("#detail");
 const stats = document.querySelector("#stats");
 const sortToggle = document.querySelector("#sortToggle");
 const projectSelect = document.querySelector("#projectSelect");
+const projectOptions = document.querySelector("#projectOptions");
 const issueDialog = document.querySelector("#issueDialog");
 const issueForm = document.querySelector("#issueForm");
 
@@ -32,11 +34,12 @@ document.querySelector("#addIssue").addEventListener("click", openIssueDialog);
 sortToggle.addEventListener("click", toggleSortDirection);
 issueForm.addEventListener("submit", createIssue);
 issueForm.querySelectorAll("button[value='cancel']").forEach((button) => button.addEventListener("click", () => issueDialog.close()));
-projectSelect.addEventListener("change", () => {
-  activeCardId = null;
-  activeProjectSlug = projectSelect.value || "";
-  persistActiveProject(activeProjectSlug);
-  load();
+projectSelect.addEventListener("input", renderProjectOptions);
+projectSelect.addEventListener("focus", renderProjectOptions);
+projectSelect.addEventListener("keydown", handleProjectKeydown);
+projectOptions.addEventListener("click", handleProjectOptionClick);
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".project-combobox")) hideProjectOptions();
 });
 stats.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-filter]");
@@ -51,6 +54,7 @@ async function load() {
   const project = activeProjectSlug || projectSelect.value || "";
   const response = await fetch(`/api/model${project ? `?project=${encodeURIComponent(project)}` : ""}`);
   model = await response.json();
+  activeProjectSlug = model.app.active_project_slug || model.projects[0]?.slug || activeProjectSlug;
   renderProjectSelect();
   renderSortToggle();
   persistActiveProject(model.app.active_project_slug);
@@ -59,10 +63,88 @@ async function load() {
 }
 
 function renderProjectSelect() {
-  const current = activeProjectSlug || model.app.active_project_slug || model.projects[0]?.slug || "";
-  projectSelect.innerHTML = model.projects.map((project) => `<option value="${escapeAttr(project.slug)}">${escapeHtml(project.slug)} · ${escapeHtml(project.name)}</option>`).join("");
-  projectSelect.value = current;
-  activeProjectSlug = projectSelect.value || current;
+  const current = model.projects.find((project) => project.slug === activeProjectSlug) || model.projects[0] || null;
+  activeProjectSlug = current?.slug || activeProjectSlug;
+  projectSelect.value = projectDisplayName(current);
+  hideProjectOptions();
+}
+
+function renderProjectOptions() {
+  if (!model) return;
+  const query = projectSelect.value.trim();
+  const lowerQuery = query.toLowerCase();
+  const matches = model.projects.filter((project) => {
+    if (!lowerQuery) return true;
+    return project.slug.toLowerCase().includes(lowerQuery) || project.name.toLowerCase().includes(lowerQuery) || projectDisplayName(project).toLowerCase().includes(lowerQuery);
+  });
+  const exact = findProject(model.projects, query);
+  const candidate = parseProjectCandidate(query);
+  const canCreate = candidate && !model.projects.some((project) => project.slug === candidate.stub) && !exact;
+  const existingHtml = matches.map((project) => `
+    <button type="button" role="option" data-project-slug="${escapeAttr(project.slug)}">
+      ${escapeHtml(projectDisplayName(project))}
+    </button>
+  `).join("");
+  const createHtml = canCreate ? `
+    <button type="button" role="option" data-create-project="true">
+      ${escapeHtml(projectCreateLabel(candidate))}
+    </button>
+  ` : "";
+  projectOptions.innerHTML = `${existingHtml}${createHtml}`;
+  const hasOptions = Boolean(matches.length || canCreate);
+  projectOptions.hidden = !hasOptions;
+  projectSelect.setAttribute("aria-expanded", String(hasOptions));
+}
+
+async function handleProjectOptionClick(event) {
+  const button = event.target.closest("button");
+  if (!button) return;
+  if (button.dataset.createProject) return createProjectFromSelector();
+  if (!button.dataset.projectSlug) return;
+  activeProjectSlug = button.dataset.projectSlug;
+  activeCardId = null;
+  hideProjectOptions();
+  await persistActiveProject(activeProjectSlug);
+  await load();
+}
+
+async function handleProjectKeydown(event) {
+  if (event.key === "Escape") return hideProjectOptions();
+  if (event.key !== "Enter") return;
+  const exact = findProject(model?.projects || [], projectSelect.value);
+  if (exact) {
+    event.preventDefault();
+    activeProjectSlug = exact.slug;
+    activeCardId = null;
+    hideProjectOptions();
+    await persistActiveProject(activeProjectSlug);
+    return load();
+  }
+  const candidate = parseProjectCandidate(projectSelect.value);
+  if (candidate) {
+    event.preventDefault();
+    return createProjectFromSelector();
+  }
+}
+
+async function createProjectFromSelector() {
+  const candidate = parseProjectCandidate(projectSelect.value);
+  if (!candidate) return;
+  model = await postRaw("/api/projects", { slug: candidate.stub, name: candidate.name });
+  activeProjectSlug = candidate.stub;
+  await persistActiveProject(activeProjectSlug);
+  activeCardId = model.cards[0]?.id || null;
+  renderProjectSelect();
+  render();
+}
+
+function hideProjectOptions() {
+  projectOptions.hidden = true;
+  projectSelect.setAttribute("aria-expanded", "false");
+}
+
+function selectedProjectSlug() {
+  return activeProjectSlug || model?.app?.active_project_slug || model?.projects[0]?.slug || "DL";
 }
 
 function visibleCards() {
@@ -102,7 +184,7 @@ async function toggleSortDirection() {
   const next = current === "asc" ? "desc" : "asc";
   model = await postRaw("/api/settings", {
     sort_direction: next,
-    project_slug: activeProjectSlug || projectSelect.value || model?.app?.active_project_slug || ""
+    project_slug: selectedProjectSlug()
   });
   activeCardId = model.cards[0]?.id || activeCardId;
   renderProjectSelect();
@@ -224,12 +306,12 @@ function wireDetail(card) {
   }
   const draft = document.querySelector("#draft");
   draft.addEventListener("change", async () => {
-    await post(`/api/issues/${encodeURIComponent(card.id)}/patch`, { draft_response: draft.value, project_slug: projectSelect.value });
+    await post(`/api/issues/${encodeURIComponent(card.id)}/patch`, { draft_response: draft.value, project_slug: selectedProjectSlug() });
   });
   const talk = document.querySelector("#talk");
   const sendTalk = async () => {
     if (!talk.value.trim()) return;
-    await post(`/api/issues/${encodeURIComponent(card.id)}/talk`, { text: talk.value, project_slug: projectSelect.value });
+    await post(`/api/issues/${encodeURIComponent(card.id)}/talk`, { text: talk.value, project_slug: selectedProjectSlug() });
     talk.value = "";
   };
   document.querySelector("#sendTalk").addEventListener("click", sendTalk);
@@ -239,7 +321,7 @@ function wireDetail(card) {
   const comment = document.querySelector("#comment");
   document.querySelector("#sendComment").addEventListener("click", async () => {
     if (!comment.value.trim()) return;
-    await post(`/api/issues/${encodeURIComponent(card.id)}/comment`, { body: comment.value, project_slug: projectSelect.value });
+    await post(`/api/issues/${encodeURIComponent(card.id)}/comment`, { body: comment.value, project_slug: selectedProjectSlug() });
     comment.value = "";
   });
   document.querySelector("#historySortToggle")?.addEventListener("click", () => {
@@ -272,7 +354,7 @@ async function postRaw(url, body) {
 async function postStatus(cardId, status) {
   const previousCards = visibleCards();
   const previousIndex = previousCards.findIndex((card) => card.id === cardId);
-  await post(`/api/issues/${encodeURIComponent(cardId)}/status`, { status, project_slug: projectSelect.value });
+  await post(`/api/issues/${encodeURIComponent(cardId)}/status`, { status, project_slug: selectedProjectSlug() });
   selectAfterRemoval(cardId, previousIndex);
   render();
 }
@@ -292,13 +374,14 @@ async function createIssue(event) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      project_slug: projectSelect.value || model.app.active_project_slug || "DL",
+      project_slug: selectedProjectSlug(),
       title: issue.title,
       description: issue.description
     })
   });
   const payload = await response.json();
   model = payload.model;
+  activeProjectSlug = model.app.active_project_slug || activeProjectSlug;
   activeCardId = String(payload.issue.issue_id);
   issueDialog.close();
   renderProjectSelect();
