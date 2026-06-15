@@ -201,6 +201,13 @@ async function validateHistoryLinks() {
   runInNewContext(appScript, sandbox);
   const historyHtml = sandbox.__DESKTOP_LINEAR_TESTS__.historyHtml;
   assert(typeof historyHtml === "function", "expected history renderer test hook");
+  const issueMatchesSearch = sandbox.__DESKTOP_LINEAR_TESTS__.issueMatchesSearch;
+  assert(typeof issueMatchesSearch === "function", "expected issue search test hook");
+  const searchableCard = { key: "VAL-12", title: "Persist workpad note", description: "Search by implementation detail." };
+  assert(issueMatchesSearch(searchableCard, "VAL-12"), "expected issue search to match by issue ID");
+  assert(issueMatchesSearch(searchableCard, "workpad"), "expected issue search to match by title");
+  assert(issueMatchesSearch(searchableCard, "implementation detail"), "expected issue search to match by description");
+  assert(!issueMatchesSearch(searchableCard, "missing"), "expected issue search to exclude non-matches");
   const html = historyHtml({
     events: [{ created_at: "2026-01-01T00:00:00.000Z", actor: "GitHub", summary: "Opened https://github.com/example/repo/pull/1." }],
     comments: [{ created_at: "2026-01-01T00:01:00.000Z", author: "User", body: "Review <script>alert(1)</script> at https://linear.app/test" }]

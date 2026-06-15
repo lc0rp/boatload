@@ -7,6 +7,7 @@ let filter = "open";
 let lastFlowDirection = 1;
 let activeProjectSlug = projectFromLocation() || localStorage.getItem("desktop-linear.activeProject") || "";
 let historySortDirection = "asc";
+let issueSearchQuery = "";
 const historyPages = new Map();
 const openStates = new Set(["backlog", "todo", "in_progress", "rework", "code_review", "human_review", "merging"]);
 const lifecycleStates = [
@@ -26,6 +27,7 @@ const stats = document.querySelector("#stats");
 const sortToggle = document.querySelector("#sortToggle");
 const projectSelect = document.querySelector("#projectSelect");
 const projectOptions = document.querySelector("#projectOptions");
+const issueSearch = document.querySelector("#issueSearch");
 const issueDialog = document.querySelector("#issueDialog");
 const issueForm = document.querySelector("#issueForm");
 
@@ -38,6 +40,10 @@ projectSelect.addEventListener("input", renderProjectOptions);
 projectSelect.addEventListener("focus", renderProjectOptions);
 projectSelect.addEventListener("keydown", handleProjectKeydown);
 projectOptions.addEventListener("click", handleProjectOptionClick);
+issueSearch.addEventListener("input", () => {
+  issueSearchQuery = issueSearch.value;
+  render();
+});
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".project-combobox")) hideProjectOptions();
 });
@@ -149,9 +155,19 @@ function selectedProjectSlug() {
 
 function visibleCards() {
   if (!model) return [];
-  if (filter === "all") return model.cards;
-  if (filter === "open") return model.cards.filter((card) => openStates.has(card.status));
-  return model.cards.filter((card) => card.status === filter);
+  const cards = filter === "all"
+    ? model.cards
+    : filter === "open"
+      ? model.cards.filter((card) => openStates.has(card.status))
+      : model.cards.filter((card) => card.status === filter);
+  return cards.filter((card) => issueMatchesSearch(card, issueSearchQuery));
+}
+
+function issueMatchesSearch(card, query) {
+  const needle = String(query || "").trim().toLowerCase();
+  if (!needle) return true;
+  return [card.key, card.title, card.description]
+    .some((value) => String(value || "").toLowerCase().includes(needle));
 }
 
 function render() {
@@ -167,9 +183,13 @@ function render() {
     });
   }
   const active = cards.find((card) => card.id === activeCardId);
-  detail.innerHTML = active ? detailView(active) : `<div class="empty">No issues in this view.</div>`;
+  detail.innerHTML = active ? detailView(active) : `<div class="empty">${escapeHtml(emptyMessage())}</div>`;
   wireDetail(active);
   rail.querySelector(".card.active")?.scrollIntoView({ block: "nearest" });
+}
+
+function emptyMessage() {
+  return issueSearchQuery.trim() ? "No issues match this search." : "No issues in this view.";
 }
 
 function renderSortToggle() {
@@ -536,6 +556,7 @@ function escapeAttr(value) {
 if (globalThis.__DESKTOP_LINEAR_TESTS__) {
   globalThis.__DESKTOP_LINEAR_TESTS__.historyHtml = historyHtml;
   globalThis.__DESKTOP_LINEAR_TESTS__.linkHistoryText = linkHistoryText;
+  globalThis.__DESKTOP_LINEAR_TESTS__.issueMatchesSearch = issueMatchesSearch;
 }
 
 load();
