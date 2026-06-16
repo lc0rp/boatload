@@ -5,6 +5,7 @@ let model = null;
 let activeCardId = null;
 let filter = "open";
 let lastFlowDirection = 1;
+let mobileView = "list";
 let activeProjectSlug = projectFromLocation() || localStorage.getItem("desktop-linear.activeProject") || "";
 let historySortDirection = "asc";
 let issueSearchQuery = "";
@@ -25,6 +26,7 @@ const rail = document.querySelector("#rail");
 const detail = document.querySelector("#detail");
 const stats = document.querySelector("#stats");
 const sortToggle = document.querySelector("#sortToggle");
+const statusSelect = document.querySelector("#statusSelect");
 const projectSelect = document.querySelector("#projectSelect");
 const projectOptions = document.querySelector("#projectOptions");
 const issueSearch = document.querySelector("#issueSearch");
@@ -34,6 +36,13 @@ const issueForm = document.querySelector("#issueForm");
 document.querySelector("#refresh").addEventListener("click", load);
 document.querySelector("#addIssue").addEventListener("click", openIssueDialog);
 sortToggle.addEventListener("click", toggleSortDirection);
+statusSelect.addEventListener("change", () => {
+  filter = statusSelect.value;
+  mobileView = "list";
+  activeCardId = visibleCards()[0]?.id || null;
+  updateFilterButtons();
+  render();
+});
 issueForm.addEventListener("submit", createIssue);
 issueForm.querySelectorAll("button[value='cancel']").forEach((button) => button.addEventListener("click", () => issueDialog.close()));
 projectSelect.addEventListener("input", renderProjectOptions);
@@ -109,6 +118,7 @@ async function handleProjectOptionClick(event) {
   if (!button.dataset.projectSlug) return;
   activeProjectSlug = button.dataset.projectSlug;
   activeCardId = null;
+  mobileView = "list";
   hideProjectOptions();
   await persistActiveProject(activeProjectSlug);
   await load();
@@ -122,6 +132,7 @@ async function handleProjectKeydown(event) {
     event.preventDefault();
     activeProjectSlug = exact.slug;
     activeCardId = null;
+    mobileView = "list";
     hideProjectOptions();
     await persistActiveProject(activeProjectSlug);
     return load();
@@ -172,14 +183,19 @@ function issueMatchesSearch(card, query) {
 
 function render() {
   renderStats();
+  renderStatusSelect();
   renderSortToggle();
   const cards = visibleCards();
+  if (!cards.length) mobileView = "list";
+  if (document.body) document.body.dataset.mobileView = mobileView;
   if (!cards.find((card) => card.id === activeCardId)) activeCardId = cards[0]?.id || null;
   rail.innerHTML = cards.map(cardButton).join("");
   for (const button of rail.querySelectorAll(".card")) {
     button.addEventListener("click", () => {
       activeCardId = button.dataset.id;
+      mobileView = "detail";
       render();
+      scrollToTop();
     });
   }
   const active = cards.find((card) => card.id === activeCardId);
@@ -212,18 +228,7 @@ async function toggleSortDirection() {
 }
 
 function renderStats() {
-  const data = [
-    ["open", "Open", model.stats.open],
-    ["backlog", "Backlog", model.stats.backlog],
-    ["todo", "Todo", model.stats.todo],
-    ["in_progress", "Progress", model.stats.in_progress],
-    ["rework", "Rework", model.stats.rework],
-    ["code_review", "Review", model.stats.code_review],
-    ["human_review", "Human", model.stats.human_review],
-    ["merging", "Merging", model.stats.merging],
-    ["done", "Done", model.stats.done],
-    ["all", "Total", model.stats.total]
-  ];
+  const data = statusFilterOptions();
   stats.innerHTML = data.map(([key, label, value]) => `
     <button type="button" class="stat ${key === filter ? "active" : ""}" data-filter="${escapeAttr(key)}" aria-pressed="${key === filter}">
       <strong>${value}</strong><span>${label}</span>
@@ -231,25 +236,48 @@ function renderStats() {
   `).join("");
 }
 
+function renderStatusSelect() {
+  statusSelect.innerHTML = statusFilterOptions().map(([key, label, value]) => `
+    <option value="${escapeAttr(key)}">${escapeHtml(label)} (${value})</option>
+  `).join("");
+  statusSelect.value = filter;
+}
+
+function statusFilterOptions() {
+  return [
+    ["open", "Open", model.stats.open],
+    ["backlog", "Backlog", model.stats.backlog],
+    ["todo", "Todo", model.stats.todo],
+    ["in_progress", "In Progress", model.stats.in_progress],
+    ["rework", "Rework", model.stats.rework],
+    ["code_review", "Code Review", model.stats.code_review],
+    ["human_review", "Human Review", model.stats.human_review],
+    ["merging", "Merging", model.stats.merging],
+    ["done", "Done", model.stats.done],
+    ["all", "Total", model.stats.total]
+  ];
+}
+
 function cardButton(card) {
   return `
     <button class="card ${card.id === activeCardId ? "active" : ""}" data-id="${escapeAttr(card.id)}">
       <div class="tags">${tagHtml([card.status, ...card.labels])}</div>
       <h2><span class="key">${escapeHtml(card.key)}</span> ${escapeHtml(card.title)}</h2>
-      <div class="meta">${escapeHtml(developer-machine.local_time)} · ${escapeHtml(card.status_label)} · ${escapeHtml(card.priority)}</div>
-      <div class="card-summary">${escapeHtml(card.summary)}</div>
+      <div class="meta">${escapeHtml(developer-machine.local_time)}<span class="card-status-meta"> · ${escapeHtml(card.status_label)}</span> · ${escapeHtml(card.priority)}</div>
+      ${cardSummaryHtml(card)}
     </button>
   `;
 }
 
 function detailView(card) {
   return `
+    ${mobileDetailNav(card)}
     <div class="detail-header">
       <div>
-        <div class="tags">${tagHtml([card.status, ...card.labels])}</div>
+        <div class="tags detail-tags">${tagHtml([card.status, ...card.labels])}</div>
         <div class="source">${escapeHtml(card.project_name)} · ${escapeHtml(card.key)} · Updated ${escapeHtml(developer-machine.local_time)}</div>
         <h2>${escapeHtml(card.title)}</h2>
-        <div class="source">${escapeHtml(card.branch || "No branch")} ${card.worktree ? `· ${escapeHtml(card.worktree)}` : ""}</div>
+        <div class="source detail-branch">${escapeHtml(card.branch || "No branch")} ${card.worktree ? `· ${escapeHtml(card.worktree)}` : ""}</div>
       </div>
       <span class="pill">${escapeHtml(card.status_label)}</span>
     </div>
@@ -312,6 +340,31 @@ function detailView(card) {
   `;
 }
 
+function cardSummaryHtml(card) {
+  const summary = String(card.summary || "").trim();
+  if (!summary || summary.toLowerCase() === "no description yet.") return "";
+  return `<div class="card-summary">${escapeHtml(truncateText(summary, 140))}</div>`;
+}
+
+function truncateText(value, maxLength) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function mobileDetailNav(card) {
+  const cards = visibleCards();
+  const index = cards.findIndex((candidate) => candidate.id === card.id);
+  const previousDisabled = index <= 0 ? "disabled" : "";
+  const nextDisabled = index < 0 || index >= cards.length - 1 ? "disabled" : "";
+  return `
+    <nav class="mobile-detail-nav" aria-label="Issue navigation">
+      <button type="button" data-mobile-nav="prev" ${previousDisabled}>&lt; Prev</button>
+      <button type="button" data-mobile-nav="list">List</button>
+      <button type="button" data-mobile-nav="next" ${nextDisabled}>Next &gt;</button>
+    </nav>
+  `;
+}
+
 function stateButton(status, label, key, className = "", currentStatus = "") {
   const isCurrent = status === currentStatus;
   const classes = [className, isCurrent ? "current-status" : ""].filter(Boolean).join(" ");
@@ -321,6 +374,9 @@ function stateButton(status, label, key, className = "", currentStatus = "") {
 
 function wireDetail(card) {
   if (!card) return;
+  for (const button of detail.querySelectorAll("[data-mobile-nav]")) {
+    button.addEventListener("click", () => handleMobileNavigation(button.dataset.mobileNav));
+  }
   for (const button of detail.querySelectorAll("button[data-status]")) {
     button.addEventListener("click", () => postStatus(card.id, button.dataset.status));
   }
@@ -376,6 +432,7 @@ async function postStatus(cardId, status) {
   const previousIndex = previousCards.findIndex((card) => card.id === cardId);
   await post(`/api/issues/${encodeURIComponent(cardId)}/status`, { status, project_slug: selectedProjectSlug() });
   selectAfterRemoval(cardId, previousIndex);
+  if (!activeCardId) mobileView = "list";
   render();
 }
 
@@ -403,6 +460,7 @@ async function createIssue(event) {
   model = payload.model;
   activeProjectSlug = model.app.active_project_slug || activeProjectSlug;
   activeCardId = String(payload.issue.issue_id);
+  mobileView = "detail";
   issueDialog.close();
   renderProjectSelect();
   render();
@@ -445,6 +503,28 @@ function moveActiveCard(delta) {
     activeCardId = cards[nextIndex].id;
     render();
   }
+}
+
+function handleMobileNavigation(action) {
+  if (action === "list") {
+    mobileView = "list";
+    render();
+    scrollToTop();
+    return;
+  }
+  const cards = visibleCards();
+  const index = cards.findIndex((card) => card.id === activeCardId);
+  const delta = action === "next" ? 1 : -1;
+  const next = cards[index + delta];
+  if (!next) return;
+  activeCardId = next.id;
+  mobileView = "detail";
+  render();
+  scrollToTop();
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
 function selectAfterRemoval(cardId, previousIndex) {
