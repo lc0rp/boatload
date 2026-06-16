@@ -10,6 +10,10 @@ assert(!indexHtml.includes('class="segmented"'), "expected segmented status tabs
 assert(appJs.includes('stats.addEventListener("click"'), "expected status counters to handle filter clicks");
 assert(!appJs.includes('querySelector("#filters")'), "expected app JS not to bind old status tabs");
 assert(!appJs.includes("filters.addEventListener"), "expected old filter click handler to be removed");
+assert(appJs.includes("<h3>Saved Draft</h3>"), "expected issue detail to label draft storage separately from comments");
+assert(!appJs.includes("Draft Response Or Workpad Note"), "expected ambiguous draft/comment heading to be removed");
+assert(appJs.includes("<h3>History Comment</h3>"), "expected issue detail to label comments as history entries");
+assert(appJs.includes("Add Comment"), "expected comment action button to remain explicit");
 assert(appJs.includes("[\"all\", \"Total\""), "expected Total counter to map to the all filter");
 assert(/<button[^>]+class="stat/.test(appJs), "expected stats renderer to output clickable stat buttons");
 assert(appJs.includes("data-filter="), "expected stat buttons to expose data-filter attributes");
@@ -18,7 +22,7 @@ assert(stylesCss.includes(".stat.active"), "expected active status counter styli
 assert(stylesCss.includes(".stat:hover"), "expected status counters to have hover affordance");
 assert(!stylesCss.includes(".segmented button.active"), "expected old segmented-tab active styling to be removed");
 
-console.log("UI validation passed: status counters are the only status filter surface.");
+console.log("UI validation passed: status counters filter issues and issue detail draft/comment labels are distinct.");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

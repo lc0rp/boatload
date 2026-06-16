@@ -252,8 +252,8 @@ function detailView(card) {
     </div>
 
     <div class="section">
-      <h3>Draft Response Or Workpad Note</h3>
-      <textarea class="draft" id="draft">${escapeHtml(card.draft_response || card.proposed_action.draft || "")}</textarea>
+      <h3>Saved Draft</h3>
+      <textarea class="draft" id="draft" placeholder="Save a reusable response or workpad note">${escapeHtml(card.draft_response || card.proposed_action.draft || "")}</textarea>
     </div>
 
     <div class="section">
@@ -265,10 +265,10 @@ function detailView(card) {
     </div>
 
     <div class="section">
-      <h3>Add Comment</h3>
+      <h3>History Comment</h3>
       <div class="comment-box">
-        <textarea id="comment" placeholder="Record a Desktop Symphony workpad update, blocker, or decision"></textarea>
-        <button id="sendComment">Add</button>
+        <textarea id="comment" placeholder="Record a Desktop Symphony update, blocker, or decision in history"></textarea>
+        <button id="sendComment">Add Comment</button>
       </div>
     </div>
 
