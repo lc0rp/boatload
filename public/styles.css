@@ -76,8 +76,10 @@ h1 { font-size: 40px; line-height: 1; }
 }
 .toolbar-actions {
   align-items: flex-start;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
+  width: 100%;
 }
 .icon-button, .action-row button, select {
   min-height: 38px;
@@ -122,13 +124,18 @@ select { border: 1px solid var(--line); background: var(--panel); }
   position: relative;
   min-width: 260px;
 }
-.project-combobox input {
+.project-combobox input,
+.issue-search {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--ink);
   padding: 0 12px;
+}
+.issue-search {
+  flex: 0 1 320px;
+  min-width: 220px;
 }
 .project-options {
   position: absolute;
@@ -364,9 +371,14 @@ select { border: 1px solid var(--line); background: var(--panel); }
     min-width: 0;
   }
   .project-combobox input,
+  .issue-search,
   .status-select {
     min-height: 40px;
     font-size: 15px;
+  }
+  .issue-search {
+    flex: 1 1 220px;
+    min-width: 0;
   }
   .status-select { display: block; }
   .toolbar-actions > .icon-button { display: none; }

@@ -24,6 +24,12 @@ assert(appJs.includes("aria-pressed"), "expected stat buttons to expose pressed 
 assert(stylesCss.includes(".stat.active"), "expected active status counter styling");
 assert(stylesCss.includes(".stat:hover"), "expected status counters to have hover affordance");
 assert(!stylesCss.includes(".segmented button.active"), "expected old segmented-tab active styling to be removed");
+assert(indexHtml.includes('id="issueSearch"'), "expected issue search input next to project selector");
+assert(indexHtml.includes('aria-label="Search issues by ID, title, or description"'), "expected issue search to describe searchable fields");
+assert(appJs.includes("issueMatchesSearch"), "expected issue filtering helper");
+assert(appJs.includes("card.key, card.title, card.description"), "expected issue search to include ID, title, and description");
+assert(appJs.includes('issueSearch.addEventListener("input"'), "expected issue search input to update rendered cards");
+assert(stylesCss.includes(".issue-search"), "expected issue search styling");
 assert(stylesCss.includes("overflow-wrap: anywhere"), "expected long mobile text to wrap instead of forcing horizontal scroll");
 assert(stylesCss.includes("grid-template-columns: 1fr"), "expected mobile layout to collapse to one column");
 assert(stylesCss.includes(".talk-box, .comment-box { grid-template-columns: 1fr; }"), "expected mobile input actions to stack vertically");
@@ -37,7 +43,7 @@ assert(stylesCss.includes(".detail-header .tags"), "expected mobile detail to hi
 assert(stylesCss.includes(".card-status-meta { display: none; }"), "expected mobile cards not to repeat the selected status");
 assert(stylesCss.includes("-webkit-line-clamp: 2"), "expected mobile card summaries to be tightly clamped");
 
-console.log("UI validation passed: desktop counters and mobile status selector are wired.");
+console.log("UI validation passed: desktop counters, mobile status selector, and issue search are wired.");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
