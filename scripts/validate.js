@@ -75,11 +75,11 @@ try {
   await post(`/api/symphony/issues/${issue.key}/workpad`, {
     body: "## Codex Workpad\n\nDesktop Symphony Agent: Validation Worker\nDesktop Symphony Worktree: /tmp/desktop-linear-validation"
   });
-  await post(`/api/issues/${issue.issue_id}/talk`, { text: "draft: Worker should read the validation fixture and open a PR.", project_slug: "VAL" });
+  await post(`/api/issues/${issue.issue_id}/talk`, { text: "note: Worker should read the validation fixture and open a PR.", project_slug: "VAL" });
   model = await getModel("VAL");
   card = model.cards.find((candidate) => candidate.key === "VAL-1");
-  assert(card.status === "in_progress", "expected issue to stay in progress after draft command");
-  assert(card.draft_response.includes("validation fixture"), "expected draft to persist");
+  assert(card.status === "in_progress", "expected issue to stay in progress after note command");
+  assert(card.comments.some((comment) => comment.body.includes("validation fixture")), "expected note command to persist as a comment");
   assert(card.assignee === "Validation Worker", "expected Symphony assignment to persist");
   assert(card.comments.some((comment) => comment.body.includes("Worktree prepared")), "expected comments to persist");
   assert(card.comments.some((comment) => comment.kind === "assignment"), "expected assignment comment to persist");
@@ -201,6 +201,13 @@ async function validateHistoryLinks() {
   runInNewContext(appScript, sandbox);
   const historyHtml = sandbox.__DESKTOP_LINEAR_TESTS__.historyHtml;
   assert(typeof historyHtml === "function", "expected history renderer test hook");
+  const issueMatchesSearch = sandbox.__DESKTOP_LINEAR_TESTS__.issueMatchesSearch;
+  assert(typeof issueMatchesSearch === "function", "expected issue search test hook");
+  const searchableCard = { key: "VAL-12", title: "Persist workpad note", description: "Search by implementation detail." };
+  assert(issueMatchesSearch(searchableCard, "VAL-12"), "expected issue search to match by issue ID");
+  assert(issueMatchesSearch(searchableCard, "workpad"), "expected issue search to match by title");
+  assert(issueMatchesSearch(searchableCard, "implementation detail"), "expected issue search to match by description");
+  assert(!issueMatchesSearch(searchableCard, "missing"), "expected issue search to exclude non-matches");
   const html = historyHtml({
     events: [{ created_at: "2026-01-01T00:00:00.000Z", actor: "GitHub", summary: "Opened https://github.com/example/repo/pull/1." }],
     comments: [{ created_at: "2026-01-01T00:01:00.000Z", author: "User", body: "Review <script>alert(1)</script> at https://linear.app/test" }]
