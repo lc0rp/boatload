@@ -131,6 +131,9 @@ select { border: 1px solid var(--line); background: var(--panel); }
   background: var(--panel);
   box-shadow: var(--shadow);
 }
+.project-options[hidden] {
+  display: none;
+}
 .project-options button {
   min-height: 36px;
   border: 0;

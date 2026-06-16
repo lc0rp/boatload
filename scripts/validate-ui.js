@@ -17,6 +17,7 @@ assert(appJs.includes("aria-pressed"), "expected stat buttons to expose pressed 
 assert(stylesCss.includes(".stat.active"), "expected active status counter styling");
 assert(stylesCss.includes(".stat:hover"), "expected status counters to have hover affordance");
 assert(!stylesCss.includes(".segmented button.active"), "expected old segmented-tab active styling to be removed");
+assert(/\.project-options\[hidden\]\s*{[^}]*display:\s*none;/.test(stylesCss), "expected hidden project selector options to be removed from layout");
 
 console.log("UI validation passed: status counters are the only status filter surface.");
 
