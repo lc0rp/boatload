@@ -5,8 +5,10 @@ let model = null;
 let activeCardId = null;
 let filter = "open";
 let lastFlowDirection = 1;
+let mobileView = "list";
 let activeProjectSlug = projectFromLocation() || localStorage.getItem("desktop-linear.activeProject") || "";
 let historySortDirection = "asc";
+let issueSearchQuery = "";
 const historyPages = new Map();
 const openStates = new Set(["backlog", "todo", "in_progress", "rework", "code_review", "human_review", "merging"]);
 const lifecycleStates = [
@@ -24,20 +26,33 @@ const rail = document.querySelector("#rail");
 const detail = document.querySelector("#detail");
 const stats = document.querySelector("#stats");
 const sortToggle = document.querySelector("#sortToggle");
+const statusSelect = document.querySelector("#statusSelect");
 const projectSelect = document.querySelector("#projectSelect");
 const projectOptions = document.querySelector("#projectOptions");
+const issueSearch = document.querySelector("#issueSearch");
 const issueDialog = document.querySelector("#issueDialog");
 const issueForm = document.querySelector("#issueForm");
 
 document.querySelector("#refresh").addEventListener("click", load);
 document.querySelector("#addIssue").addEventListener("click", openIssueDialog);
 sortToggle.addEventListener("click", toggleSortDirection);
+statusSelect.addEventListener("change", () => {
+  filter = statusSelect.value;
+  mobileView = "list";
+  activeCardId = visibleCards()[0]?.id || null;
+  updateFilterButtons();
+  render();
+});
 issueForm.addEventListener("submit", createIssue);
 issueForm.querySelectorAll("button[value='cancel']").forEach((button) => button.addEventListener("click", () => issueDialog.close()));
 projectSelect.addEventListener("input", renderProjectOptions);
 projectSelect.addEventListener("focus", renderProjectOptions);
 projectSelect.addEventListener("keydown", handleProjectKeydown);
 projectOptions.addEventListener("click", handleProjectOptionClick);
+issueSearch.addEventListener("input", () => {
+  issueSearchQuery = issueSearch.value;
+  render();
+});
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".project-combobox")) hideProjectOptions();
 });
@@ -103,6 +118,7 @@ async function handleProjectOptionClick(event) {
   if (!button.dataset.projectSlug) return;
   activeProjectSlug = button.dataset.projectSlug;
   activeCardId = null;
+  mobileView = "list";
   hideProjectOptions();
   await persistActiveProject(activeProjectSlug);
   await load();
@@ -116,6 +132,7 @@ async function handleProjectKeydown(event) {
     event.preventDefault();
     activeProjectSlug = exact.slug;
     activeCardId = null;
+    mobileView = "list";
     hideProjectOptions();
     await persistActiveProject(activeProjectSlug);
     return load();
@@ -149,28 +166,48 @@ function selectedProjectSlug() {
 
 function visibleCards() {
   if (!model) return [];
-  if (filter === "all") return model.cards;
-  if (filter === "open") return model.cards.filter((card) => openStates.has(card.status));
-  if (filter === "codex") return model.cards.filter((card) => card.stage === "codex");
-  return model.cards.filter((card) => card.status === filter);
+  const cards = filter === "all"
+    ? model.cards
+    : filter === "open"
+      ? model.cards.filter((card) => openStates.has(card.status))
+      : filter === "codex"
+        ? model.cards.filter((card) => card.stage === "codex")
+      : model.cards.filter((card) => card.status === filter);
+  return cards.filter((card) => issueMatchesSearch(card, issueSearchQuery));
+}
+
+function issueMatchesSearch(card, query) {
+  const needle = String(query || "").trim().toLowerCase();
+  if (!needle) return true;
+  return [card.key, card.title, card.description]
+    .some((value) => String(value || "").toLowerCase().includes(needle));
 }
 
 function render() {
   renderStats();
+  renderStatusSelect();
   renderSortToggle();
   const cards = visibleCards();
+  if (!cards.length) mobileView = "list";
+  if (document.body) document.body.dataset.mobileView = mobileView;
   if (!cards.find((card) => card.id === activeCardId)) activeCardId = cards[0]?.id || null;
   rail.innerHTML = cards.map(cardButton).join("");
   for (const button of rail.querySelectorAll(".card")) {
     button.addEventListener("click", () => {
       activeCardId = button.dataset.id;
+      mobileView = "detail";
       render();
+      scrollToTop();
     });
   }
   const active = cards.find((card) => card.id === activeCardId);
-  detail.innerHTML = active ? detailView(active) : `<div class="empty">No issues in this view.</div>`;
+  detail.innerHTML = active ? detailView(active) : `<div class="empty">${escapeHtml(emptyMessage())}</div>`;
   wireDetail(active);
   rail.querySelector(".card.active")?.scrollIntoView({ block: "nearest" });
+}
+
+function emptyMessage() {
+  return issueSearchQuery.trim() ? "No issues match this search." : "No issues in this view.";
 }
 
 function renderSortToggle() {
@@ -193,19 +230,7 @@ async function toggleSortDirection() {
 }
 
 function renderStats() {
-  const data = [
-    ["open", "Open", model.stats.open],
-    ["codex", "Codex", model.stats.codex],
-    ["backlog", "Backlog", model.stats.backlog],
-    ["todo", "Todo", model.stats.todo],
-    ["in_progress", "Progress", model.stats.in_progress],
-    ["rework", "Rework", model.stats.rework],
-    ["code_review", "Review", model.stats.code_review],
-    ["human_review", "Human", model.stats.human_review],
-    ["merging", "Merging", model.stats.merging],
-    ["done", "Done", model.stats.done],
-    ["all", "Total", model.stats.total]
-  ];
+  const data = statusFilterOptions();
   stats.innerHTML = data.map(([key, label, value]) => `
     <button type="button" class="stat ${key === filter ? "active" : ""}" data-filter="${escapeAttr(key)}" aria-pressed="${key === filter}">
       <strong>${value}</strong><span>${label}</span>
@@ -213,32 +238,57 @@ function renderStats() {
   `).join("");
 }
 
+function renderStatusSelect() {
+  statusSelect.innerHTML = statusFilterOptions().map(([key, label, value]) => `
+    <option value="${escapeAttr(key)}">${escapeHtml(label)} (${value})</option>
+  `).join("");
+  statusSelect.value = filter;
+}
+
+function statusFilterOptions() {
+  return [
+    ["open", "Open", model.stats.open],
+    ["codex", "Codex", model.stats.codex],
+    ["backlog", "Backlog", model.stats.backlog],
+    ["todo", "Todo", model.stats.todo],
+    ["in_progress", "In Progress", model.stats.in_progress],
+    ["rework", "Rework", model.stats.rework],
+    ["code_review", "Code Review", model.stats.code_review],
+    ["human_review", "Human Review", model.stats.human_review],
+    ["merging", "Merging", model.stats.merging],
+    ["done", "Done", model.stats.done],
+    ["all", "Total", model.stats.total]
+  ];
+}
+
 function cardButton(card) {
   return `
     <button class="card ${card.id === activeCardId ? "active" : ""}" data-id="${escapeAttr(card.id)}">
       <div class="tags">${tagHtml([card.stage || card.status, ...card.labels])}</div>
       <h2><span class="key">${escapeHtml(card.key)}</span> ${escapeHtml(card.title)}</h2>
-      <div class="meta">${escapeHtml(developer-machine.local_time)} · ${escapeHtml(card.stage_label || card.status_label)} · ${escapeHtml(card.priority)}</div>
-      <div class="card-summary">${escapeHtml(card.summary)}</div>
+      <div class="meta">${escapeHtml(developer-machine.local_time)}<span class="card-status-meta"> · ${escapeHtml(card.stage_label || card.status_label)}</span> · ${escapeHtml(card.priority)}</div>
+      ${cardSummaryHtml(card)}
     </button>
   `;
 }
 
 function detailView(card) {
+  const canEditIssueText = card.status !== "done";
   return `
+    ${mobileDetailNav(card)}
     <div class="detail-header">
       <div>
-        <div class="tags">${tagHtml([card.stage || card.status, ...card.labels])}</div>
+        <div class="tags detail-tags">${tagHtml([card.stage || card.status, ...card.labels])}</div>
         <div class="source">${escapeHtml(card.project_name)} · ${escapeHtml(card.key)} · Updated ${escapeHtml(developer-machine.local_time)}</div>
-        <h2>${escapeHtml(card.title)}</h2>
-        <div class="source">${escapeHtml(card.branch || "No branch")} ${card.worktree ? `· ${escapeHtml(card.worktree)}` : ""}</div>
+        <h2${canEditIssueText ? ' class="editable-field" data-edit-field="title" tabindex="0" role="button" title="Edit title"' : ""}>${escapeHtml(card.title)}</h2>
+        <div class="source detail-branch">${escapeHtml(card.branch || "No branch")} ${card.worktree ? `· ${escapeHtml(card.worktree)}` : ""}</div>
       </div>
       <span class="pill">${escapeHtml(card.stage_label || card.status_label)}</span>
     </div>
 
     <div class="section">
       <h3>Issue Context</h3>
-      <div class="issue-context">${escapeHtml(card.description || "No description yet.")}</div>
+      <div class="issue-context${canEditIssueText ? " editable-field" : ""}"${canEditIssueText ? ' data-edit-field="description" tabindex="0" role="button" title="Edit issue context"' : ""}>${escapeHtml(card.description || "No description yet.")}</div>
     </div>
 
     <div class="section action-panel">
@@ -294,6 +344,31 @@ function detailView(card) {
   `;
 }
 
+function cardSummaryHtml(card) {
+  const summary = String(card.summary || "").trim();
+  if (!summary || summary.toLowerCase() === "no description yet.") return "";
+  return `<div class="card-summary">${escapeHtml(truncateText(summary, 140))}</div>`;
+}
+
+function truncateText(value, maxLength) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function mobileDetailNav(card) {
+  const cards = visibleCards();
+  const index = cards.findIndex((candidate) => candidate.id === card.id);
+  const previousDisabled = index <= 0 ? "disabled" : "";
+  const nextDisabled = index < 0 || index >= cards.length - 1 ? "disabled" : "";
+  return `
+    <nav class="mobile-detail-nav" aria-label="Issue navigation">
+      <button type="button" data-mobile-nav="prev" ${previousDisabled}>&lt; Prev</button>
+      <button type="button" data-mobile-nav="list">List</button>
+      <button type="button" data-mobile-nav="next" ${nextDisabled}>Next &gt;</button>
+    </nav>
+  `;
+}
+
 function stateButton(status, label, key, className = "", currentStatus = "") {
   const isCurrent = status === currentStatus;
   const classes = [className, isCurrent ? "current-status" : ""].filter(Boolean).join(" ");
@@ -303,6 +378,17 @@ function stateButton(status, label, key, className = "", currentStatus = "") {
 
 function wireDetail(card) {
   if (!card) return;
+  for (const button of detail.querySelectorAll("[data-mobile-nav]")) {
+    button.addEventListener("click", () => handleMobileNavigation(button.dataset.mobileNav));
+  }
+  for (const field of detail.querySelectorAll("[data-edit-field]")) {
+    field.addEventListener("click", () => startIssueFieldEdit(card, field.dataset.editField));
+    field.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      startIssueFieldEdit(card, field.dataset.editField);
+    });
+  }
   for (const button of detail.querySelectorAll("button[data-status]")) {
     button.addEventListener("click", () => postStatus(card.id, button.dataset.status));
   }
@@ -339,6 +425,56 @@ function wireDetail(card) {
   }
 }
 
+function startIssueFieldEdit(card, field) {
+  if (card.status === "done") return;
+  const node = detail.querySelector(`[data-edit-field="${field}"]`);
+  if (!node || detail.querySelector("[data-editing-field]")) return;
+  const isTitle = field === "title";
+  const currentValue = isTitle ? card.title : card.description || "";
+  const editor = document.createElement(isTitle ? "input" : "textarea");
+  editor.dataset.editingField = field;
+  editor.className = `inline-editor ${isTitle ? "title-editor" : "context-editor"}`;
+  editor.value = currentValue;
+  editor.setAttribute("aria-label", isTitle ? "Issue title" : "Issue context");
+  if (!isTitle) editor.rows = Math.max(3, Math.min(12, currentValue.split("\n").length + 1));
+  node.replaceWith(editor);
+  editor.focus();
+  editor.select();
+
+  let finished = false;
+  const finish = async (shouldSave) => {
+    if (finished) return;
+    finished = true;
+    const nextValue = editor.value.replace(/\r\n?/g, "\n").trim();
+    if (!shouldSave || nextValue === currentValue || (isTitle && !nextValue)) {
+      render();
+      return;
+    }
+    await saveIssueField(card, field, nextValue);
+  };
+
+  editor.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finish(false);
+      return;
+    }
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      finish(true);
+    }
+  });
+  editor.addEventListener("blur", () => finish(true));
+}
+
+async function saveIssueField(card, field, value) {
+  await post(`/api/issues/${encodeURIComponent(card.id)}/patch`, {
+    [field]: value,
+    actor: "User",
+    project_slug: selectedProjectSlug()
+  });
+}
+
 async function post(url, body) {
   const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   model = await response.json();
@@ -358,6 +494,7 @@ async function postStatus(cardId, status) {
   const previousIndex = previousCards.findIndex((card) => card.id === cardId);
   await post(`/api/issues/${encodeURIComponent(cardId)}/status`, { status, project_slug: selectedProjectSlug() });
   selectAfterRemoval(cardId, previousIndex);
+  if (!activeCardId) mobileView = "list";
   render();
 }
 
@@ -385,6 +522,7 @@ async function createIssue(event) {
   model = payload.model;
   activeProjectSlug = model.app.active_project_slug || activeProjectSlug;
   activeCardId = String(payload.issue.issue_id);
+  mobileView = "detail";
   issueDialog.close();
   renderProjectSelect();
   render();
@@ -427,6 +565,28 @@ function moveActiveCard(delta) {
     activeCardId = cards[nextIndex].id;
     render();
   }
+}
+
+function handleMobileNavigation(action) {
+  if (action === "list") {
+    mobileView = "list";
+    render();
+    scrollToTop();
+    return;
+  }
+  const cards = visibleCards();
+  const index = cards.findIndex((card) => card.id === activeCardId);
+  const delta = action === "next" ? 1 : -1;
+  const next = cards[index + delta];
+  if (!next) return;
+  activeCardId = next.id;
+  mobileView = "detail";
+  render();
+  scrollToTop();
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
 function selectAfterRemoval(cardId, previousIndex) {
@@ -538,6 +698,7 @@ function escapeAttr(value) {
 if (globalThis.__DESKTOP_LINEAR_TESTS__) {
   globalThis.__DESKTOP_LINEAR_TESTS__.historyHtml = historyHtml;
   globalThis.__DESKTOP_LINEAR_TESTS__.linkHistoryText = linkHistoryText;
+  globalThis.__DESKTOP_LINEAR_TESTS__.issueMatchesSearch = issueMatchesSearch;
 }
 
 load();

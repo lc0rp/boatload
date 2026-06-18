@@ -75,9 +75,23 @@ try {
   await post(`/api/symphony/issues/${issue.key}/workpad`, {
     body: "## Codex Workpad\n\nDesktop Symphony Agent: Validation Worker\nDesktop Symphony Worktree: /tmp/desktop-linear-validation"
   });
+  await post(`/api/issues/${issue.issue_id}/patch`, {
+    title: "Edited validation lifecycle title",
+    project_slug: "VAL",
+    actor: "Validation"
+  });
+  await post(`/api/issues/${issue.issue_id}/patch`, {
+    description: "Edited validation issue context.",
+    project_slug: "VAL",
+    actor: "Validation"
+  });
   await post(`/api/issues/${issue.issue_id}/talk`, { text: "draft: Worker should read the validation fixture and open a PR.", project_slug: "VAL" });
   model = await getModel("VAL");
   card = model.cards.find((candidate) => candidate.key === "VAL-1");
+  assert(card.title === "Edited validation lifecycle title", "expected issue title patch to persist");
+  assert(card.description === "Edited validation issue context.", "expected issue context patch to persist");
+  assert(card.events.some((event) => event.summary.includes("Edited by Validation") && event.summary.includes("title")), "expected title edit history to identify the editor");
+  assert(card.events.some((event) => event.summary.includes("Edited by Validation") && event.summary.includes("issue context")), "expected context edit history to identify the editor");
   assert(card.status === "in_progress", "expected issue to stay in progress after draft command");
   assert(card.draft_response.includes("validation fixture"), "expected draft to persist");
   assert(card.assignee === "Validation Worker", "expected Symphony assignment to persist");
@@ -221,6 +235,13 @@ async function validateHistoryLinks() {
   runInNewContext(appScript, sandbox);
   const historyHtml = sandbox.__DESKTOP_LINEAR_TESTS__.historyHtml;
   assert(typeof historyHtml === "function", "expected history renderer test hook");
+  const issueMatchesSearch = sandbox.__DESKTOP_LINEAR_TESTS__.issueMatchesSearch;
+  assert(typeof issueMatchesSearch === "function", "expected issue search test hook");
+  const searchableCard = { key: "VAL-12", title: "Persist workpad note", description: "Search by implementation detail." };
+  assert(issueMatchesSearch(searchableCard, "VAL-12"), "expected issue search to match by issue ID");
+  assert(issueMatchesSearch(searchableCard, "workpad"), "expected issue search to match by title");
+  assert(issueMatchesSearch(searchableCard, "implementation detail"), "expected issue search to match by description");
+  assert(!issueMatchesSearch(searchableCard, "missing"), "expected issue search to exclude non-matches");
   const html = historyHtml({
     events: [{ created_at: "2026-01-01T00:00:00.000Z", actor: "GitHub", summary: "Opened https://github.com/example/repo/pull/1." }],
     comments: [{ created_at: "2026-01-01T00:01:00.000Z", author: "User", body: "Review <script>alert(1)</script> at https://linear.app/test" }]
@@ -329,7 +350,11 @@ async function validateNewIssueDialog() {
   assert(html.includes('textarea name="issue" required'), "expected new issue dialog to use one required issue textarea");
   assert(!html.includes('name="title"') && !html.includes('name="description"'), "expected new issue dialog to remove separate title and description fields");
   assert(app.includes("deriveIssueFields"), "expected create flow to derive title and description from the issue textarea");
+  assert(app.includes("startIssueFieldEdit"), "expected issue detail title and context to support inline editing");
+  assert(app.includes('card.status !== "done"'), "expected Done issues to suppress inline detail editing");
+  assert(app.includes('actor: "User"'), "expected inline detail edits to identify the editor");
   assert(styles.includes(".issue-context { white-space: pre-wrap; }"), "expected issue context rendering to preserve newlines");
+  assert(styles.includes(".editable-field"), "expected editable issue fields to have a visible affordance");
 }
 
 function assert(condition, message) {

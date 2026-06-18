@@ -352,6 +352,10 @@ function patchIssue(issueId, body) {
   const issue = issueById(db, issueId);
   if (!issue) throw new Error("Issue not found.");
   const now = iso();
+  const actor = String(body.actor || "User");
+  const textEdits = [];
+  if (body.title !== undefined && body.title !== issue.title) textEdits.push("title");
+  if (body.description !== undefined && body.description !== issue.description) textEdits.push("issue context");
   db.prepare(`
     UPDATE issues SET title = ?, description = ?, priority = ?, labels_json = ?, assignee = ?, branch = ?, worktree = ?, github_url = ?, draft_response = ?, updated_at = ? WHERE id = ?
   `).run(
@@ -367,7 +371,10 @@ function patchIssue(issueId, body) {
     now,
     issue.id
   );
-  recordEvent(db, issue.id, "issue_updated", body.actor || "User", `${issue.key} updated.`, body, now);
+  const summary = textEdits.length
+    ? `Edited by ${actor}: ${issue.key} ${textEdits.join(" and ")} updated.`
+    : `${issue.key} updated.`;
+  recordEvent(db, issue.id, "issue_updated", actor, summary, body, now);
 }
 
 function assignIssue(issueKey, body) {
