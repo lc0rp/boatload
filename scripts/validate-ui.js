@@ -24,6 +24,7 @@ assert(appJs.includes("aria-pressed"), "expected stat buttons to expose pressed 
 assert(stylesCss.includes(".stat.active"), "expected active status counter styling");
 assert(stylesCss.includes(".stat:hover"), "expected status counters to have hover affordance");
 assert(!stylesCss.includes(".segmented button.active"), "expected old segmented-tab active styling to be removed");
+assert(/\.project-options\[hidden\]\s*{[^}]*display:\s*none;/.test(stylesCss), "expected hidden project selector options to be removed from layout");
 assert(indexHtml.includes('id="issueSearch"'), "expected issue search input next to project selector");
 assert(indexHtml.includes('aria-label="Search issues by ID, title, or description"'), "expected issue search to describe searchable fields");
 assert(appJs.includes("issueMatchesSearch"), "expected issue filtering helper");
@@ -43,7 +44,7 @@ assert(stylesCss.includes(".detail-header .tags"), "expected mobile detail to hi
 assert(stylesCss.includes(".card-status-meta { display: none; }"), "expected mobile cards not to repeat the selected status");
 assert(stylesCss.includes("-webkit-line-clamp: 2"), "expected mobile card summaries to be tightly clamped");
 
-console.log("UI validation passed: desktop counters, mobile status selector, and issue search are wired.");
+console.log("UI validation passed: desktop counters, mobile status selector, issue search, and hidden project selector options are wired.");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
