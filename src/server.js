@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { createReadStream, createWriteStream } from "node:fs";
+import { constants, accessSync, createReadStream, createWriteStream, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +15,7 @@ const dbPath = process.env.DESKTOP_LINEAR_DB || path.join(dataDir, "desktop-line
 const eventsPath = process.env.DESKTOP_LINEAR_EVENTS || path.join(dataDir, "desktop-linear-events.jsonl");
 const codexTasksPath = process.env.DESKTOP_LINEAR_CODEX_TASKS || path.join(dataDir, "desktop-linear-codex-tasks.jsonl");
 const codexBinary = process.env.CODEX_BINARY || "codex";
+const codexExecutable = resolveCodexExecutable(codexBinary);
 const port = Number.parseInt(process.env.PORT || "4888", 10);
 const host = process.env.HOST || "127.0.0.1";
 
@@ -233,6 +234,7 @@ function toCard(row) {
   const comments = db.prepare("SELECT * FROM comments WHERE issue_id = ? ORDER BY created_at ASC, id ASC").all(row.id);
   const events = db.prepare("SELECT * FROM events WHERE issue_id = ? ORDER BY created_at ASC, id ASC").all(row.id);
   const tasks = db.prepare("SELECT * FROM codex_tasks WHERE issue_id = ? ORDER BY created_at ASC").all(row.id);
+  const stage = stageForStatus(row.status, tasks);
   const labels = parseJson(row.labels_json, []);
   return {
     id: String(row.id),
@@ -259,6 +261,8 @@ function toCard(row) {
     updated_at: row.updated_at,
     local_time: localTime(row.updated_at),
     summary: row.description || "No description yet.",
+    stage,
+    stage_label: labelForStatus(stage),
     proposed_action: proposedAction(row, labels, comments, tasks),
     comments,
     events: events.map((event) => ({ ...event, payload: parseJson(event.payload_json, {}) })),
@@ -282,11 +286,17 @@ function proposedAction(issue, labels, comments, tasks) {
   return { type: "triage", label: "Triage", prompt: "Clarify the desired outcome and move the issue to the right state.", draft: "" };
 }
 
+function stageForStatus(status, tasks) {
+  const latestTask = tasks.at(-1);
+  return latestTask?.status === "working" || latestTask?.status === "queued" ? "codex" : status;
+}
+
 function statsFor(cards) {
-  const stats = { total: cards.length, open: 0 };
+  const stats = { total: cards.length, open: 0, codex: 0 };
   for (const state of states) stats[state] = 0;
   for (const card of cards) {
     stats[card.status] = (stats[card.status] || 0) + 1;
+    if (card.stage === "codex") stats.codex += 1;
     if (openStates.has(card.status)) stats.open += 1;
   }
   return stats;
@@ -438,11 +448,15 @@ async function triggerCodexTask(taskId) {
 }
 
 async function launchCodexCli(task) {
-  const issue = toCard({ ...issueById(db, task.issue_id), project_slug: projectById(db, issueById(db, task.issue_id).project_id).slug, project_name: projectById(db, issueById(db, task.issue_id).project_id).name });
+  const issueRow = issueById(db, task.issue_id);
+  const project = projectById(db, issueRow.project_id);
+  const issue = toCard({ ...issueRow, project_slug: project.slug, project_name: project.name });
+  const workspace = codexWorkspaceFor(issue);
+  const apiBase = process.env.DESKTOP_LINEAR_API_BASE || `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${port}`;
   const prompt = `You are working a Desktop Linear card inside Codex Desktop.
 
-Workspace: ${root}
-App API base: http://${host}:${port}
+Workspace: ${workspace}
+App API base: ${apiBase}
 Issue: ${issue.key}
 Task id: ${task.id}
 User's instruction: ${task.text}
@@ -454,7 +468,7 @@ Rules:
 - Interpret the instruction in context.
 - Use live sources when current facts matter.
 - Write durable output back to the app before finishing.
-- To finish, POST JSON to /api/issues/${issue.id}/codex-result with {"task_id":"${task.id}","status":"new","result":"<concise result>"}.
+- To finish, POST JSON to /api/issues/${issue.id}/codex-result with {"task_id":"${task.id}","result":"<concise result>"}.
 - If a state transition is right, POST /api/issues/${issue.id}/status first or set "status" in the result payload to a Desktop Linear state.
 `;
   const base = path.join(runsDir, task.id);
@@ -463,9 +477,9 @@ Rules:
   const stderrPath = `${base}.stderr.log`;
   const resultPath = `${base}.last-message.md`;
   await writeFile(promptPath, prompt, "utf8");
-  const args = ["exec", "--cd", root, "--skip-git-repo-check", "--sandbox", "danger-full-access", "--output-last-message", resultPath, "-"];
+  const args = ["exec", "--cd", workspace, "--skip-git-repo-check", "--sandbox", "danger-full-access", "--output-last-message", resultPath, "-"];
   if (process.env.CODEX_EXEC_MODEL) args.splice(-1, 0, "--model", process.env.CODEX_EXEC_MODEL);
-  const child = spawn(codexBinary, args, { cwd: root, env: process.env, stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn(codexExecutable, args, { cwd: workspace, env: process.env, stdio: ["pipe", "pipe", "pipe"] });
   child.stdin.end(prompt);
   child.stdout.pipe(createWriteStream(stdoutPath, { flags: "a" }));
   child.stderr.pipe(createWriteStream(stderrPath, { flags: "a" }));
@@ -474,12 +488,39 @@ Rules:
     const current = db.prepare("SELECT * FROM codex_tasks WHERE id = ?").get(task.id);
     if (!current || current.status === "done") return;
     const result = code === 0 ? (await readText(resultPath)) || "Codex CLI completed." : `Codex CLI exited with code ${code}. See ${stderrPath}.`;
-    completeCodexTask(task.issue_id, { task_id: task.id, result, status: "todo" });
+    completeCodexTask(task.issue_id, { task_id: task.id, result });
   });
   child.on("error", (error) => {
     runningCodexTasks.delete(task.id);
-    completeCodexTask(task.issue_id, { task_id: task.id, result: `Codex task failed: ${error.message}`, status: "todo" });
+    completeCodexTask(task.issue_id, { task_id: task.id, result: `Codex task failed: ${error.message}` });
   });
+}
+
+function codexWorkspaceFor(issue) {
+  if (issue.worktree && existsSync(issue.worktree)) return issue.worktree;
+  return root;
+}
+
+function resolveCodexExecutable(value) {
+  const executable = String(value || "codex");
+  if (executable.includes(path.sep)) return executable;
+  const home = process.env.HOME || "";
+  const candidates = [
+    ...String(process.env.PATH || "").split(path.delimiter).filter(Boolean).map((dir) => path.join(dir, executable)),
+    home ? path.join(home, ".local", "bin", executable) : "",
+    home ? path.join(home, ".npm-global", "bin", executable) : "",
+    home ? path.join(home, ".bun", "bin", executable) : "",
+    path.join("/opt/homebrew/bin", executable),
+    path.join("/usr/local/bin", executable),
+    path.join("/usr/bin", executable)
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {}
+  }
+  return executable;
 }
 
 function completeCodexTask(issueId, body) {
@@ -630,7 +671,7 @@ async function handleApi(req, res) {
   if (req.method === "GET" && url.pathname === "/api/symphony/issues") {
     const project = url.searchParams.get("project") || "";
     const stateFilter = new Set(String(url.searchParams.get("states") || "").split(",").map((item) => item.trim()).filter(Boolean));
-    const cards = loadModel(project).cards.filter((card) => !stateFilter.size || stateFilter.has(card.status));
+    const cards = loadModel(project).cards.filter((card) => !stateFilter.size || stateFilter.has(card.status) || stateFilter.has(card.stage));
     return sendJson(res, 200, { generated_at: iso(), cards });
   }
   if (req.method === "POST" && url.pathname === "/api/symphony/issues") {

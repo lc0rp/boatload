@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { parseProjectCandidate, projectCreateLabel } from "../public/project-selector.js";
@@ -108,6 +108,11 @@ try {
   model = await getModel("VAL");
   card = model.cards.find((candidate) => candidate.key === "VAL-1");
   assert(card.codex_tasks.some((task) => task.status === "queued"), "expected talk to queue a Codex task");
+  assert(card.stage === "codex", "expected queued Codex task to expose the Codex stage");
+  assert(card.stage_label === "Codex", "expected queued Codex task stage label");
+  assert(model.stats.codex === 1, "expected Codex stage counter to include queued task");
+  const codexStageQueue = await getSymphonyIssues("VAL", "codex");
+  assert(codexStageQueue.cards.some((candidate) => candidate.key === "VAL-1"), "expected Symphony issue listing to filter by Codex stage");
 
   await post("/api/github-events", {
     event_type: "opened",
@@ -148,6 +153,21 @@ try {
   assert(events.includes("workpad_created") && events.includes("workpad_updated"), "expected workpad upsert events in append-only log");
   const codexTasks = await readFile(codexTasksPath, "utf8");
   assert(codexTasks.includes("next review step"), "expected Codex task queue mirror");
+
+  await installFakeCodex();
+  server.kill("SIGTERM");
+  server = startServer({
+    CODEX_BINARY: "codex",
+    DISABLE_CODEX_EXEC: "",
+    HOME: validationRoot,
+    PATH: "/usr/bin:/bin"
+  });
+  await waitForServer(server);
+  await post(`/api/issues/${explicitTodo.issue.issue_id}/talk`, { text: "ask Codex to prove the runner can launch from a common local bin path", project_slug: "VAL" });
+  const completedCodexCard = await waitForCodexResult("VAL", "VAL-2", "Fake Codex completed validation task.");
+  assert(completedCodexCard.status === "todo", "expected Codex completion not to force a status transition");
+  assert(completedCodexCard.stage === "todo", "expected completed Codex task to return to the lifecycle stage");
+
   validateHistoryPagination();
   await validateHistoryLinks();
 
@@ -232,7 +252,24 @@ async function validateHistoryLinks() {
   assert(!html.includes("<script>"), "expected history renderer not to emit script tags");
 }
 
-function startServer() {
+async function installFakeCodex() {
+  const fakeCodexDir = path.join(validationRoot, ".local", "bin");
+  const fakeCodexPath = path.join(fakeCodexDir, "codex");
+  await mkdir(fakeCodexDir, { recursive: true });
+  await writeFile(fakeCodexPath, `#!${process.execPath}
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+const outputIndex = args.indexOf("--output-last-message");
+const outputPath = outputIndex >= 0 ? args[outputIndex + 1] : "";
+process.stdin.resume();
+process.stdin.on("end", () => {
+  if (outputPath) fs.writeFileSync(outputPath, "Fake Codex completed validation task.");
+});
+`, "utf8");
+  await chmod(fakeCodexPath, 0o755);
+}
+
+function startServer(envOverrides = {}) {
   const child = spawn(process.execPath, ["src/server.js"], {
     cwd: new URL("..", import.meta.url),
     env: {
@@ -242,7 +279,8 @@ function startServer() {
       DESKTOP_LINEAR_EVENTS: eventsPath,
       DESKTOP_LINEAR_CODEX_TASKS: codexTasksPath,
       CODEX_RUNS_DIR: path.join(validationRoot, "runs"),
-      DISABLE_CODEX_EXEC: "1"
+      DISABLE_CODEX_EXEC: "1",
+      ...envOverrides
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -275,6 +313,17 @@ async function getSymphonyIssues(project, states) {
   const response = await fetch(`${base}/api/symphony/issues?project=${encodeURIComponent(project)}&states=${encodeURIComponent(states)}`);
   assert(response.ok, `GET /api/symphony/issues failed: ${response.status}`);
   return response.json();
+}
+
+async function waitForCodexResult(project, key, expectedText) {
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    const model = await getModel(project);
+    const card = model.cards.find((candidate) => candidate.key === key);
+    if (card?.comments.some((comment) => comment.kind === "codex_result" && comment.body.includes(expectedText))) return card;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`Timed out waiting for Codex result on ${key}. Server output:\n${server?.output?.() || ""}`);
 }
 
 async function getText(url) {

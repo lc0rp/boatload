@@ -18,6 +18,8 @@ assert(appJs.includes('function cardSummaryHtml(card)'), "expected compact card 
 assert(!appJs.includes('querySelector("#filters")'), "expected app JS not to bind old status tabs");
 assert(!appJs.includes("filters.addEventListener"), "expected old filter click handler to be removed");
 assert(appJs.includes("[\"all\", \"Total\""), "expected Total counter to map to the all filter");
+assert(appJs.includes("[\"codex\", \"Codex\""), "expected Codex counter to map to the Codex stage filter");
+assert(appJs.includes('filter === "codex"'), "expected cards to filter by computed Codex stage");
 assert(/<button[^>]+class="stat/.test(appJs), "expected stats renderer to output clickable stat buttons");
 assert(appJs.includes("data-filter="), "expected stat buttons to expose data-filter attributes");
 assert(appJs.includes("aria-pressed"), "expected stat buttons to expose pressed state");

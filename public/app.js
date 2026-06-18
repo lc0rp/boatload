@@ -170,6 +170,8 @@ function visibleCards() {
     ? model.cards
     : filter === "open"
       ? model.cards.filter((card) => openStates.has(card.status))
+      : filter === "codex"
+        ? model.cards.filter((card) => card.stage === "codex")
       : model.cards.filter((card) => card.status === filter);
   return cards.filter((card) => issueMatchesSearch(card, issueSearchQuery));
 }
@@ -246,6 +248,7 @@ function renderStatusSelect() {
 function statusFilterOptions() {
   return [
     ["open", "Open", model.stats.open],
+    ["codex", "Codex", model.stats.codex],
     ["backlog", "Backlog", model.stats.backlog],
     ["todo", "Todo", model.stats.todo],
     ["in_progress", "In Progress", model.stats.in_progress],
@@ -261,9 +264,9 @@ function statusFilterOptions() {
 function cardButton(card) {
   return `
     <button class="card ${card.id === activeCardId ? "active" : ""}" data-id="${escapeAttr(card.id)}">
-      <div class="tags">${tagHtml([card.status, ...card.labels])}</div>
+      <div class="tags">${tagHtml([card.stage || card.status, ...card.labels])}</div>
       <h2><span class="key">${escapeHtml(card.key)}</span> ${escapeHtml(card.title)}</h2>
-      <div class="meta">${escapeHtml(developer-machine.local_time)}<span class="card-status-meta"> · ${escapeHtml(card.status_label)}</span> · ${escapeHtml(card.priority)}</div>
+      <div class="meta">${escapeHtml(developer-machine.local_time)}<span class="card-status-meta"> · ${escapeHtml(card.stage_label || card.status_label)}</span> · ${escapeHtml(card.priority)}</div>
       ${cardSummaryHtml(card)}
     </button>
   `;
@@ -275,12 +278,12 @@ function detailView(card) {
     ${mobileDetailNav(card)}
     <div class="detail-header">
       <div>
-        <div class="tags detail-tags">${tagHtml([card.status, ...card.labels])}</div>
+        <div class="tags detail-tags">${tagHtml([card.stage || card.status, ...card.labels])}</div>
         <div class="source">${escapeHtml(card.project_name)} · ${escapeHtml(card.key)} · Updated ${escapeHtml(developer-machine.local_time)}</div>
         <h2${canEditIssueText ? ' class="editable-field" data-edit-field="title" tabindex="0" role="button" title="Edit title"' : ""}>${escapeHtml(card.title)}</h2>
         <div class="source detail-branch">${escapeHtml(card.branch || "No branch")} ${card.worktree ? `· ${escapeHtml(card.worktree)}` : ""}</div>
       </div>
-      <span class="pill">${escapeHtml(card.status_label)}</span>
+      <span class="pill">${escapeHtml(card.stage_label || card.status_label)}</span>
     </div>
 
     <div class="section">
