@@ -21,9 +21,15 @@ assert(appJs.includes("[\"all\", \"Total\""), "expected Total counter to map to 
 assert(/<button[^>]+class="stat/.test(appJs), "expected stats renderer to output clickable stat buttons");
 assert(appJs.includes("data-filter="), "expected stat buttons to expose data-filter attributes");
 assert(appJs.includes("aria-pressed"), "expected stat buttons to expose pressed state");
+assert(appJs.includes("startIssueFieldEdit"), "expected issue detail fields to enter inline edit mode");
+assert(appJs.includes("saveIssueField"), "expected issue detail inline edits to persist through the patch endpoint");
+assert(appJs.includes('card.status !== "done"'), "expected Done issues to suppress inline detail editing");
+assert(appJs.includes('actor: "User"'), "expected inline edits to identify the editor in history");
 assert(stylesCss.includes(".stat.active"), "expected active status counter styling");
 assert(stylesCss.includes(".stat:hover"), "expected status counters to have hover affordance");
 assert(!stylesCss.includes(".segmented button.active"), "expected old segmented-tab active styling to be removed");
+assert(stylesCss.includes(".editable-field"), "expected editable issue fields to have a hover/focus affordance");
+assert(stylesCss.includes(".inline-editor"), "expected inline issue editors to share stable styling");
 assert(/\.project-options\[hidden\]\s*{[^}]*display:\s*none;/.test(stylesCss), "expected hidden project selector options to be removed from layout");
 assert(indexHtml.includes('id="issueSearch"'), "expected issue search input next to project selector");
 assert(indexHtml.includes('aria-label="Search issues by ID, title, or description"'), "expected issue search to describe searchable fields");
@@ -44,7 +50,7 @@ assert(stylesCss.includes(".detail-header .tags"), "expected mobile detail to hi
 assert(stylesCss.includes(".card-status-meta { display: none; }"), "expected mobile cards not to repeat the selected status");
 assert(stylesCss.includes("-webkit-line-clamp: 2"), "expected mobile card summaries to be tightly clamped");
 
-console.log("UI validation passed: desktop counters, mobile status selector, issue search, and hidden project selector options are wired.");
+console.log("UI validation passed: desktop counters, mobile status selector, issue search, hidden project selector options, and issue detail inline editing are wired.");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
