@@ -40,10 +40,15 @@ assert(stylesCss.includes(".inline-editor"), "expected inline issue editors to s
 assert(/\.project-options\[hidden\]\s*{[^}]*display:\s*none;/.test(stylesCss), "expected hidden project selector options to be removed from layout");
 assert(indexHtml.includes('id="issueSearch"'), "expected issue search input next to project selector");
 assert(indexHtml.includes('aria-label="Search issues by ID, title, or description"'), "expected issue search to describe searchable fields");
+assert(indexHtml.includes('id="projectSelect" type="search"'), "expected project selector to use the browser-native search clear treatment");
+assert(!indexHtml.includes('id="projectClear"'), "expected project selector not to use a separate custom clear button");
 assert(appJs.includes("issueMatchesSearch"), "expected issue filtering helper");
 assert(appJs.includes("card.key, card.title, card.description"), "expected issue search to include ID, title, and description");
 assert(appJs.includes('issueSearch.addEventListener("input"'), "expected issue search input to update rendered cards");
+assert(appJs.includes('projectSelect.addEventListener("input", handleProjectInput)'), "expected project search clear input events to refresh project options");
+assert(!appJs.includes("projectClear"), "expected app JS not to bind a custom project clear button");
 assert(stylesCss.includes(".issue-search"), "expected issue search styling");
+assert(!stylesCss.includes(".project-clear"), "expected project picker to rely on native search clear styling");
 assert(stylesCss.includes("overflow-wrap: anywhere"), "expected long mobile text to wrap instead of forcing horizontal scroll");
 assert(stylesCss.includes("grid-template-columns: 1fr"), "expected mobile layout to collapse to one column");
 assert(stylesCss.includes(".talk-box, .comment-box { grid-template-columns: 1fr; }"), "expected mobile input actions to stack vertically");

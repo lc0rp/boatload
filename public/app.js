@@ -46,7 +46,7 @@ statusSelect.addEventListener("change", () => {
 });
 issueForm.addEventListener("submit", createIssue);
 issueForm.querySelectorAll("button[value='cancel']").forEach((button) => button.addEventListener("click", () => issueDialog.close()));
-projectSelect.addEventListener("input", renderProjectOptions);
+projectSelect.addEventListener("input", handleProjectInput);
 projectSelect.addEventListener("focus", renderProjectOptions);
 projectSelect.addEventListener("keydown", handleProjectKeydown);
 projectOptions.addEventListener("click", handleProjectOptionClick);
@@ -83,6 +83,10 @@ function renderProjectSelect() {
   activeProjectSlug = current?.slug || activeProjectSlug;
   projectSelect.value = projectDisplayName(current);
   hideProjectOptions();
+}
+
+function handleProjectInput() {
+  renderProjectOptions();
 }
 
 function renderProjectOptions() {
