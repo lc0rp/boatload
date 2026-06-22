@@ -9,6 +9,7 @@ let mobileView = "list";
 let activeProjectSlug = projectFromLocation() || localStorage.getItem("desktop-linear.activeProject") || "";
 let historySortDirection = "asc";
 let issueSearchQuery = "";
+const basePath = detectedBasePath();
 const historyPages = new Map();
 const openStates = new Set(["backlog", "todo", "in_progress", "rework", "code_review", "human_review", "merging"]);
 const lifecycleStates = [
@@ -67,7 +68,7 @@ document.addEventListener("keydown", handleGlobalShortcut);
 
 async function load() {
   const project = activeProjectSlug || projectSelect.value || "";
-  const response = await fetch(`/api/model${project ? `?project=${encodeURIComponent(project)}` : ""}`);
+  const response = await fetch(apiPath(`/api/model${project ? `?project=${encodeURIComponent(project)}` : ""}`));
   model = await response.json();
   activeProjectSlug = model.app.active_project_slug || model.projects[0]?.slug || activeProjectSlug;
   renderProjectSelect();
@@ -476,7 +477,7 @@ async function saveIssueField(card, field, value) {
 }
 
 async function post(url, body) {
-  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const response = await fetch(apiPath(url), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   model = await response.json();
   if (model.model) model = model.model;
   renderProjectSelect();
@@ -485,7 +486,7 @@ async function post(url, body) {
 }
 
 async function postRaw(url, body) {
-  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const response = await fetch(apiPath(url), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   return response.json();
 }
 
@@ -509,7 +510,7 @@ async function createIssue(event) {
   const data = new FormData(issueForm);
   const issueText = String(data.get("issue") || "");
   const issue = deriveIssueFields(issueText);
-  const response = await fetch("/api/issues", {
+  const response = await fetch(apiPath("/api/issues"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -607,6 +608,18 @@ function updateFilterButtons() {
 
 function projectFromLocation() {
   return new URLSearchParams(window.location.search).get("project") || "";
+}
+
+function detectedBasePath() {
+  const configured = document.documentElement?.dataset?.basePath || "";
+  if (configured) return configured.replace(/\/$/, "");
+  const marker = "/desktop-linear";
+  const pathname = window.location.pathname || "";
+  return pathname === marker || pathname.startsWith(`${marker}/`) ? marker : "";
+}
+
+function apiPath(path) {
+  return `${basePath}${path}`;
 }
 
 async function persistActiveProject(projectSlug) {
