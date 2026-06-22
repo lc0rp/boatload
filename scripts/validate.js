@@ -85,15 +85,15 @@ try {
     project_slug: "VAL",
     actor: "Validation"
   });
-  await post(`/api/issues/${issue.issue_id}/talk`, { text: "draft: Worker should read the validation fixture and open a PR.", project_slug: "VAL" });
+  await post(`/api/issues/${issue.issue_id}/talk`, { text: "note: Worker should read the validation fixture and open a PR.", project_slug: "VAL" });
   model = await getModel("VAL");
   card = model.cards.find((candidate) => candidate.key === "VAL-1");
   assert(card.title === "Edited validation lifecycle title", "expected issue title patch to persist");
   assert(card.description === "Edited validation issue context.", "expected issue context patch to persist");
   assert(card.events.some((event) => event.summary.includes("Edited by Validation") && event.summary.includes("title")), "expected title edit history to identify the editor");
   assert(card.events.some((event) => event.summary.includes("Edited by Validation") && event.summary.includes("issue context")), "expected context edit history to identify the editor");
-  assert(card.status === "in_progress", "expected issue to stay in progress after draft command");
-  assert(card.draft_response.includes("validation fixture"), "expected draft to persist");
+  assert(card.status === "in_progress", "expected issue to stay in progress after note command");
+  assert(card.comments.some((comment) => comment.body.includes("validation fixture")), "expected note command to persist as a comment");
   assert(card.assignee === "Validation Worker", "expected Symphony assignment to persist");
   assert(card.comments.some((comment) => comment.body.includes("Worktree prepared")), "expected comments to persist");
   assert(card.comments.some((comment) => comment.kind === "assignment"), "expected assignment comment to persist");

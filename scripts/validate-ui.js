@@ -17,6 +17,11 @@ assert(appJs.includes('body.dataset.mobileView'), "expected mobile list/detail v
 assert(appJs.includes('function cardSummaryHtml(card)'), "expected compact card summary rendering");
 assert(!appJs.includes('querySelector("#filters")'), "expected app JS not to bind old status tabs");
 assert(!appJs.includes("filters.addEventListener"), "expected old filter click handler to be removed");
+assert(!appJs.includes("<h3>Saved Draft</h3>"), "expected issue detail to remove the legacy saved draft field");
+assert(!appJs.includes("Draft Response Or Workpad Note"), "expected ambiguous draft/comment heading to be removed");
+assert(!appJs.includes("draft_response"), "expected issue detail not to wire draft_response updates");
+assert(appJs.includes("<h3>History Comment</h3>"), "expected issue detail to label comments as history entries");
+assert(appJs.includes("Add Comment"), "expected comment action button to remain explicit");
 assert(appJs.includes("[\"all\", \"Total\""), "expected Total counter to map to the all filter");
 assert(appJs.includes("[\"codex\", \"Codex\""), "expected Codex counter to map to the Codex stage filter");
 assert(appJs.includes('filter === "codex"'), "expected cards to filter by computed Codex stage");
@@ -57,7 +62,7 @@ assert(stylesCss.includes(".detail-header .tags"), "expected mobile detail to hi
 assert(stylesCss.includes(".card-status-meta { display: none; }"), "expected mobile cards not to repeat the selected status");
 assert(stylesCss.includes("-webkit-line-clamp: 2"), "expected mobile card summaries to be tightly clamped");
 
-console.log("UI validation passed: desktop counters, mobile status selector, issue search, hidden project selector options, and issue detail inline editing are wired.");
+console.log("UI validation passed: desktop counters, mobile status selector, issue search, hidden project selector options, issue detail inline editing, and comment-only issue notes are wired.");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

@@ -167,8 +167,8 @@ function createIssue(database, body) {
   const key = `${project.slug}-${number}`;
   database.prepare("UPDATE projects SET next_number = ?, updated_at = ? WHERE id = ?").run(number + 1, now, project.id);
   database.prepare(`
-    INSERT INTO issues (project_id, number, key, title, description, status, priority, labels_json, assignee, branch, worktree, github_url, draft_response, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO issues (project_id, number, key, title, description, status, priority, labels_json, assignee, branch, worktree, github_url, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     project.id,
     number,
@@ -182,7 +182,6 @@ function createIssue(database, body) {
     String(body.branch || ""),
     String(body.worktree || ""),
     String(body.github_url || ""),
-    String(body.draft_response || ""),
     now,
     now
   );
@@ -256,7 +255,6 @@ function toCard(row) {
     linear_url: row.linear_url || "",
     linear_state: row.linear_state || "",
     linear_updated_at: row.linear_updated_at || "",
-    draft_response: row.draft_response,
     created_at: row.created_at,
     updated_at: row.updated_at,
     local_time: localTime(row.updated_at),
@@ -273,17 +271,17 @@ function toCard(row) {
 function proposedAction(issue, labels, comments, tasks) {
   const latestTask = tasks.at(-1);
   if (latestTask?.status === "working" || latestTask?.status === "queued") {
-    return { type: "codex", label: "Wait for Codex", prompt: "Codex is already working this card. Review the result when it returns.", draft: "" };
+    return { type: "codex", label: "Wait for Codex", prompt: "Codex is already working this card. Review the result when it returns." };
   }
-  if (issue.status === "backlog") return { type: "prioritize", label: "Prioritize", prompt: "Clarify scope and move to Todo when this is ready for Desktop Symphony dispatch.", draft: "Clarify acceptance criteria and decide whether this should move to Todo." };
-  if (issue.status === "todo") return { type: "dispatch", label: "Start work", prompt: "Move to In Progress, assign a worktree or branch, and hand the issue to a Codex worker if needed.", draft: "Move this to In Progress and prepare the worker context." };
-  if (issue.status === "in_progress") return { type: "continue", label: "Continue or review", prompt: "Ask Codex for the next implementation step, or move to Code Review when the branch and PR are ready.", draft: "Summarize current progress and propose the next implementation step." };
-  if (issue.status === "rework") return { type: "fix", label: "Address findings", prompt: "Review the latest comments and send the issue back through the same worker/worktree.", draft: "Read the latest review findings and produce a rework plan." };
-  if (issue.status === "code_review") return { type: "review", label: "Run review", prompt: "Run a Desktop Symphony code review against the GitHub PR or branch, then move to Rework or Human Review.", draft: "Run the code review loop and record accepted findings." };
-  if (issue.status === "human_review") return { type: "human", label: "Human decision", prompt: "Decide whether this is approved for merging or needs more rework.", draft: "Record the human review decision and next state." };
-  if (issue.status === "merging") return { type: "land", label: "Land work", prompt: "Follow the repo landing flow, record the merge result, then move to Done.", draft: "Resolve the PR and landing status, then update this issue." };
-  if (issue.status === "done") return { type: "archive", label: "Review history", prompt: "Confirm the timeline is complete or add a closing note.", draft: "" };
-  return { type: "triage", label: "Triage", prompt: "Clarify the desired outcome and move the issue to the right state.", draft: "" };
+  if (issue.status === "backlog") return { type: "prioritize", label: "Prioritize", prompt: "Clarify scope and move to Todo when this is ready for Desktop Symphony dispatch." };
+  if (issue.status === "todo") return { type: "dispatch", label: "Start work", prompt: "Move to In Progress, assign a worktree or branch, and hand the issue to a Codex worker if needed." };
+  if (issue.status === "in_progress") return { type: "continue", label: "Continue or review", prompt: "Ask Codex for the next implementation step, or move to Code Review when the branch and PR are ready." };
+  if (issue.status === "rework") return { type: "fix", label: "Address findings", prompt: "Review the latest comments and send the issue back through the same worker/worktree." };
+  if (issue.status === "code_review") return { type: "review", label: "Run review", prompt: "Run a Desktop Symphony code review against the GitHub PR or branch, then move to Rework or Human Review." };
+  if (issue.status === "human_review") return { type: "human", label: "Human decision", prompt: "Decide whether this is approved for merging or needs more rework." };
+  if (issue.status === "merging") return { type: "land", label: "Land work", prompt: "Follow the repo landing flow, record the merge result, then move to Done." };
+  if (issue.status === "done") return { type: "archive", label: "Review history", prompt: "Confirm the timeline is complete or add a closing note." };
+  return { type: "triage", label: "Triage", prompt: "Clarify the desired outcome and move the issue to the right state." };
 }
 
 function stageForStatus(status, tasks) {
@@ -357,7 +355,7 @@ function patchIssue(issueId, body) {
   if (body.title !== undefined && body.title !== issue.title) textEdits.push("title");
   if (body.description !== undefined && body.description !== issue.description) textEdits.push("issue context");
   db.prepare(`
-    UPDATE issues SET title = ?, description = ?, priority = ?, labels_json = ?, assignee = ?, branch = ?, worktree = ?, github_url = ?, draft_response = ?, updated_at = ? WHERE id = ?
+    UPDATE issues SET title = ?, description = ?, priority = ?, labels_json = ?, assignee = ?, branch = ?, worktree = ?, github_url = ?, updated_at = ? WHERE id = ?
   `).run(
     body.title ?? issue.title,
     body.description ?? issue.description,
@@ -367,7 +365,6 @@ function patchIssue(issueId, body) {
     body.branch ?? issue.branch,
     body.worktree ?? issue.worktree,
     body.github_url ?? issue.github_url,
-    body.draft_response ?? issue.draft_response,
     now,
     issue.id
   );
@@ -409,11 +406,6 @@ async function handleTalk(issueId, body) {
   const comment = text.match(/^(comment|note)\s*:\s*(.+)$/i);
   if (comment?.[2]) {
     addComment(issue.id, { author: "User", body: comment[2], kind: "comment" });
-    return;
-  }
-  const draft = text.match(/^draft\s*:\s*(.+)$/i);
-  if (draft?.[1]) {
-    patchIssue(issue.id, { draft_response: draft[1], actor: "User" });
     return;
   }
   await createCodexTask(issue.id, text);
