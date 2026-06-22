@@ -133,6 +133,34 @@ select { border: 1px solid var(--line); background: var(--panel); }
   color: var(--ink);
   padding: 0 12px;
 }
+.project-combobox input {
+  padding-right: 38px;
+}
+.project-clear {
+  position: absolute;
+  z-index: 2;
+  right: 7px;
+  top: 7px;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+}
+.project-clear[hidden] {
+  display: none;
+}
+.project-clear:hover,
+.project-clear:focus-visible {
+  background: var(--ink);
+  color: var(--panel);
+}
 .issue-search {
   flex: 0 1 320px;
   min-width: 220px;

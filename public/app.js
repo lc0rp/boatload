@@ -29,6 +29,7 @@ const stats = document.querySelector("#stats");
 const sortToggle = document.querySelector("#sortToggle");
 const statusSelect = document.querySelector("#statusSelect");
 const projectSelect = document.querySelector("#projectSelect");
+const projectClear = document.querySelector("#projectClear");
 const projectOptions = document.querySelector("#projectOptions");
 const issueSearch = document.querySelector("#issueSearch");
 const issueDialog = document.querySelector("#issueDialog");
@@ -46,9 +47,10 @@ statusSelect.addEventListener("change", () => {
 });
 issueForm.addEventListener("submit", createIssue);
 issueForm.querySelectorAll("button[value='cancel']").forEach((button) => button.addEventListener("click", () => issueDialog.close()));
-projectSelect.addEventListener("input", renderProjectOptions);
+projectSelect.addEventListener("input", handleProjectInput);
 projectSelect.addEventListener("focus", renderProjectOptions);
 projectSelect.addEventListener("keydown", handleProjectKeydown);
+projectClear.addEventListener("click", clearProjectSelect);
 projectOptions.addEventListener("click", handleProjectOptionClick);
 issueSearch.addEventListener("input", () => {
   issueSearchQuery = issueSearch.value;
@@ -82,11 +84,18 @@ function renderProjectSelect() {
   const current = model.projects.find((project) => project.slug === activeProjectSlug) || model.projects[0] || null;
   activeProjectSlug = current?.slug || activeProjectSlug;
   projectSelect.value = projectDisplayName(current);
+  updateProjectClearButton();
   hideProjectOptions();
+}
+
+function handleProjectInput() {
+  updateProjectClearButton();
+  renderProjectOptions();
 }
 
 function renderProjectOptions() {
   if (!model) return;
+  updateProjectClearButton();
   const query = projectSelect.value.trim();
   const lowerQuery = query.toLowerCase();
   const matches = model.projects.filter((project) => {
@@ -110,6 +119,17 @@ function renderProjectOptions() {
   const hasOptions = Boolean(matches.length || canCreate);
   projectOptions.hidden = !hasOptions;
   projectSelect.setAttribute("aria-expanded", String(hasOptions));
+}
+
+function clearProjectSelect() {
+  projectSelect.value = "";
+  updateProjectClearButton();
+  renderProjectOptions();
+  projectSelect.focus();
+}
+
+function updateProjectClearButton() {
+  projectClear.hidden = !projectSelect.value;
 }
 
 async function handleProjectOptionClick(event) {
