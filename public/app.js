@@ -305,11 +305,6 @@ function detailView(card) {
     </div>
 
     <div class="section">
-      <h3>Draft Response Or Workpad Note</h3>
-      <textarea class="draft" id="draft">${escapeHtml(card.draft_response || card.proposed_action.draft || "")}</textarea>
-    </div>
-
-    <div class="section">
       <h3>Talk To This Issue</h3>
       <div class="talk-box">
         <input id="talk" placeholder="Ask Codex, add a note, or say move to Code Review">
@@ -318,10 +313,10 @@ function detailView(card) {
     </div>
 
     <div class="section">
-      <h3>Add Comment</h3>
+      <h3>History Comment</h3>
       <div class="comment-box">
-        <textarea id="comment" placeholder="Record a Desktop Symphony workpad update, blocker, or decision"></textarea>
-        <button id="sendComment">Add</button>
+        <textarea id="comment" placeholder="Record a Desktop Symphony update, blocker, or decision in history"></textarea>
+        <button id="sendComment">Add Comment</button>
       </div>
     </div>
 
@@ -393,10 +388,6 @@ function wireDetail(card) {
   for (const button of detail.querySelectorAll("button[data-status]")) {
     button.addEventListener("click", () => postStatus(card.id, button.dataset.status));
   }
-  const draft = document.querySelector("#draft");
-  draft.addEventListener("change", async () => {
-    await post(`/api/issues/${encodeURIComponent(card.id)}/patch`, { draft_response: draft.value, project_slug: selectedProjectSlug() });
-  });
   const talk = document.querySelector("#talk");
   const sendTalk = async () => {
     if (!talk.value.trim()) return;

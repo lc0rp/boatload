@@ -284,14 +284,14 @@ select { border: 1px solid var(--line); background: var(--panel); }
   border: 1px solid var(--line);
   padding: 14px;
 }
-.draft, .talk-box input, .comment-box textarea, .modal input, .modal textarea {
+.talk-box input, .comment-box textarea, .modal input, .modal textarea {
   width: 100%;
   border: 1px solid var(--line);
   background: #fffaf1;
   color: var(--ink);
   padding: 10px 12px;
 }
-.draft, .comment-box textarea, .modal textarea { min-height: 110px; resize: vertical; }
+.comment-box textarea, .modal textarea { min-height: 110px; resize: vertical; }
 .modal textarea[name="issue"] { min-height: 190px; }
 .talk-box, .comment-box {
   display: grid;
