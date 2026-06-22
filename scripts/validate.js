@@ -143,6 +143,10 @@ try {
   assert(model.app.sort_direction === "asc", "expected sort direction to persist across restart");
   const appBundle = await getText("/app.js");
   assert(appBundle.includes("historySortToggle") && appBundle.includes("history-sort-toggle"), "expected served app bundle to include History sort control");
+  const faviconResponse = await getResponse("/favicon.svg");
+  assert(faviconResponse.contentType === "image/svg+xml", "expected SVG favicon to be served with image/svg+xml");
+  assert(faviconResponse.text.includes("<title>Desktop Linear</title>"), "expected served favicon to identify Desktop Linear");
+  assert(faviconResponse.text.includes('d="M16 20h10') && faviconResponse.text.includes('d="M40 20h7'), "expected served favicon to draw DL initials");
   card = model.cards.find((candidate) => candidate.key === "VAL-1");
   assert(card.status === "done", "expected state to persist across restart");
   assert(card.events.some((event) => event.type === "github_event_ingested"), "expected GitHub event in history");
@@ -327,9 +331,16 @@ async function waitForCodexResult(project, key, expectedText) {
 }
 
 async function getText(url) {
+  return (await getResponse(url)).text;
+}
+
+async function getResponse(url) {
   const response = await fetch(`${base}${url}`);
   assert(response.ok, `GET ${url} failed: ${response.status}`);
-  return response.text();
+  return {
+    contentType: response.headers.get("content-type") || "",
+    text: await response.text()
+  };
 }
 
 async function post(url, body) {

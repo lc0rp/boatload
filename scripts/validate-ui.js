@@ -2,9 +2,14 @@ import { readFileSync } from "node:fs";
 
 const indexHtml = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
 const appJs = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+const faviconSvg = readFileSync(new URL("../public/favicon.svg", import.meta.url), "utf8");
 const stylesCss = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
 
 assert(indexHtml.includes('id="stats"'), "expected the status counter strip to exist");
+assert(indexHtml.includes('<link rel="icon" href="favicon.svg" type="image/svg+xml">'), "expected app HTML to install the SVG favicon");
+assert(faviconSvg.includes("<title>Desktop Linear</title>"), "expected favicon to identify Desktop Linear");
+assert(/<path[^>]+d="M16 20h10/.test(faviconSvg), "expected favicon to draw the D initial");
+assert(/<path[^>]+d="M40 20h7/.test(faviconSvg), "expected favicon to draw the L initial");
 assert(indexHtml.includes('id="statusSelect"'), "expected mobile status selector to exist");
 assert(!indexHtml.includes('id="filters"'), "expected old status tab strip to be removed");
 assert(!indexHtml.includes('class="segmented"'), "expected segmented status tabs to be removed");
