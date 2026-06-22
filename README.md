@@ -13,10 +13,16 @@ Open `http://127.0.0.1:4888` in the Codex in-app browser.
 To expose it on Tailscale from this Mac:
 
 ```bash
-npm run start:tailscale
+npm run start:devbox
 ```
 
-Open `http://100.64.0.1:4888` from another device on the tailnet.
+Open `https://host.example.test/desktop-linear/` from another device on
+the tailnet. On the devbox, Caddy owns `http://dev/*`, `https://dev/*`, and
+`https://host.example.test/*`; Desktop Linear runs as a plain HTTP
+backend on `127.0.0.1:4890`.
+
+See [Desktop Linear Caddy access](docs/desktop-linear/operators.md) for the
+devbox Caddy setup and validation commands.
 
 For a persistent Mac service, load the LaunchAgent:
 

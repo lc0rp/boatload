@@ -6,9 +6,12 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "start:tailscale": "HOST=0.0.0.0 PORT=4888 node src/server.js",
+    "start:devbox": "HOST=127.0.0.1 PORT=4890 BASE_PATH=/desktop-linear DESKTOP_LINEAR_API_BASE=https://host.example.test/desktop-linear node src/server.js",
     "import:linear": "node scripts/import-linear.js",
-    "validate": "node scripts/validate.js && node scripts/validate-ui.js"
+    "validate": "node scripts/validate.js && node scripts/validate-ui.js",
+    "lint:links": "node scripts/link-check.mjs",
+    "lint:links:fix": "node scripts/link-check.mjs --fix",
+    "lint:ia": "node scripts/ia-validate.mjs"
   },
   "dependencies": {},
   "devDependencies": {}

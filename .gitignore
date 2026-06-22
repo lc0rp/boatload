@@ -16,7 +16,13 @@
 
 # Local screenshots and task artifacts
 /desktop-linear-*.png
+/dl-*.png
 /output/
+
+# Desktop Symphony runtime artifacts
+/.orchestration/desktop-symphony-v2-dispatch.json
+/.orchestration/desktop-symphony-v2-heartbeat-lock.json
+/.orchestration/review-artifacts/
 
 # Node and package-manager artifacts
 /node_modules/

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { parseProjectCandidate, projectCreateLabel } from "../public/project-selector.js";
@@ -75,9 +75,23 @@ try {
   await post(`/api/symphony/issues/${issue.key}/workpad`, {
     body: "## Codex Workpad\n\nDesktop Symphony Agent: Validation Worker\nDesktop Symphony Worktree: /tmp/desktop-linear-validation"
   });
+  await post(`/api/issues/${issue.issue_id}/patch`, {
+    title: "Edited validation lifecycle title",
+    project_slug: "VAL",
+    actor: "Validation"
+  });
+  await post(`/api/issues/${issue.issue_id}/patch`, {
+    description: "Edited validation issue context.",
+    project_slug: "VAL",
+    actor: "Validation"
+  });
   await post(`/api/issues/${issue.issue_id}/talk`, { text: "note: Worker should read the validation fixture and open a PR.", project_slug: "VAL" });
   model = await getModel("VAL");
   card = model.cards.find((candidate) => candidate.key === "VAL-1");
+  assert(card.title === "Edited validation lifecycle title", "expected issue title patch to persist");
+  assert(card.description === "Edited validation issue context.", "expected issue context patch to persist");
+  assert(card.events.some((event) => event.summary.includes("Edited by Validation") && event.summary.includes("title")), "expected title edit history to identify the editor");
+  assert(card.events.some((event) => event.summary.includes("Edited by Validation") && event.summary.includes("issue context")), "expected context edit history to identify the editor");
   assert(card.status === "in_progress", "expected issue to stay in progress after note command");
   assert(card.comments.some((comment) => comment.body.includes("validation fixture")), "expected note command to persist as a comment");
   assert(card.assignee === "Validation Worker", "expected Symphony assignment to persist");
@@ -94,6 +108,11 @@ try {
   model = await getModel("VAL");
   card = model.cards.find((candidate) => candidate.key === "VAL-1");
   assert(card.codex_tasks.some((task) => task.status === "queued"), "expected talk to queue a Codex task");
+  assert(card.stage === "codex", "expected queued Codex task to expose the Codex stage");
+  assert(card.stage_label === "Codex", "expected queued Codex task stage label");
+  assert(model.stats.codex === 1, "expected Codex stage counter to include queued task");
+  const codexStageQueue = await getSymphonyIssues("VAL", "codex");
+  assert(codexStageQueue.cards.some((candidate) => candidate.key === "VAL-1"), "expected Symphony issue listing to filter by Codex stage");
 
   await post("/api/github-events", {
     event_type: "opened",
@@ -134,6 +153,21 @@ try {
   assert(events.includes("workpad_created") && events.includes("workpad_updated"), "expected workpad upsert events in append-only log");
   const codexTasks = await readFile(codexTasksPath, "utf8");
   assert(codexTasks.includes("next review step"), "expected Codex task queue mirror");
+
+  await installFakeCodex();
+  server.kill("SIGTERM");
+  server = startServer({
+    CODEX_BINARY: "codex",
+    DISABLE_CODEX_EXEC: "",
+    HOME: validationRoot,
+    PATH: "/usr/bin:/bin"
+  });
+  await waitForServer(server);
+  await post(`/api/issues/${explicitTodo.issue.issue_id}/talk`, { text: "ask Codex to prove the runner can launch from a common local bin path", project_slug: "VAL" });
+  const completedCodexCard = await waitForCodexResult("VAL", "VAL-2", "Fake Codex completed validation task.");
+  assert(completedCodexCard.status === "todo", "expected Codex completion not to force a status transition");
+  assert(completedCodexCard.stage === "todo", "expected completed Codex task to return to the lifecycle stage");
+
   validateHistoryPagination();
   await validateHistoryLinks();
 
@@ -218,7 +252,24 @@ async function validateHistoryLinks() {
   assert(!html.includes("<script>"), "expected history renderer not to emit script tags");
 }
 
-function startServer() {
+async function installFakeCodex() {
+  const fakeCodexDir = path.join(validationRoot, ".local", "bin");
+  const fakeCodexPath = path.join(fakeCodexDir, "codex");
+  await mkdir(fakeCodexDir, { recursive: true });
+  await writeFile(fakeCodexPath, `#!${process.execPath}
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+const outputIndex = args.indexOf("--output-last-message");
+const outputPath = outputIndex >= 0 ? args[outputIndex + 1] : "";
+process.stdin.resume();
+process.stdin.on("end", () => {
+  if (outputPath) fs.writeFileSync(outputPath, "Fake Codex completed validation task.");
+});
+`, "utf8");
+  await chmod(fakeCodexPath, 0o755);
+}
+
+function startServer(envOverrides = {}) {
   const child = spawn(process.execPath, ["src/server.js"], {
     cwd: new URL("..", import.meta.url),
     env: {
@@ -228,7 +279,8 @@ function startServer() {
       DESKTOP_LINEAR_EVENTS: eventsPath,
       DESKTOP_LINEAR_CODEX_TASKS: codexTasksPath,
       CODEX_RUNS_DIR: path.join(validationRoot, "runs"),
-      DISABLE_CODEX_EXEC: "1"
+      DISABLE_CODEX_EXEC: "1",
+      ...envOverrides
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -263,6 +315,17 @@ async function getSymphonyIssues(project, states) {
   return response.json();
 }
 
+async function waitForCodexResult(project, key, expectedText) {
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    const model = await getModel(project);
+    const card = model.cards.find((candidate) => candidate.key === key);
+    if (card?.comments.some((comment) => comment.kind === "codex_result" && comment.body.includes(expectedText))) return card;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`Timed out waiting for Codex result on ${key}. Server output:\n${server?.output?.() || ""}`);
+}
+
 async function getText(url) {
   const response = await fetch(`${base}${url}`);
   assert(response.ok, `GET ${url} failed: ${response.status}`);
@@ -287,7 +350,11 @@ async function validateNewIssueDialog() {
   assert(html.includes('textarea name="issue" required'), "expected new issue dialog to use one required issue textarea");
   assert(!html.includes('name="title"') && !html.includes('name="description"'), "expected new issue dialog to remove separate title and description fields");
   assert(app.includes("deriveIssueFields"), "expected create flow to derive title and description from the issue textarea");
+  assert(app.includes("startIssueFieldEdit"), "expected issue detail title and context to support inline editing");
+  assert(app.includes('card.status !== "done"'), "expected Done issues to suppress inline detail editing");
+  assert(app.includes('actor: "User"'), "expected inline detail edits to identify the editor");
   assert(styles.includes(".issue-context { white-space: pre-wrap; }"), "expected issue context rendering to preserve newlines");
+  assert(styles.includes(".editable-field"), "expected editable issue fields to have a visible affordance");
 }
 
 function assert(condition, message) {

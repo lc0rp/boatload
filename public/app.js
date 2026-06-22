@@ -9,6 +9,7 @@ let mobileView = "list";
 let activeProjectSlug = projectFromLocation() || localStorage.getItem("desktop-linear.activeProject") || "";
 let historySortDirection = "asc";
 let issueSearchQuery = "";
+const basePath = detectedBasePath();
 const historyPages = new Map();
 const openStates = new Set(["backlog", "todo", "in_progress", "rework", "code_review", "human_review", "merging"]);
 const lifecycleStates = [
@@ -67,7 +68,7 @@ document.addEventListener("keydown", handleGlobalShortcut);
 
 async function load() {
   const project = activeProjectSlug || projectSelect.value || "";
-  const response = await fetch(`/api/model${project ? `?project=${encodeURIComponent(project)}` : ""}`);
+  const response = await fetch(apiPath(`/api/model${project ? `?project=${encodeURIComponent(project)}` : ""}`));
   model = await response.json();
   activeProjectSlug = model.app.active_project_slug || model.projects[0]?.slug || activeProjectSlug;
   renderProjectSelect();
@@ -170,6 +171,8 @@ function visibleCards() {
     ? model.cards
     : filter === "open"
       ? model.cards.filter((card) => openStates.has(card.status))
+      : filter === "codex"
+        ? model.cards.filter((card) => card.stage === "codex")
       : model.cards.filter((card) => card.status === filter);
   return cards.filter((card) => issueMatchesSearch(card, issueSearchQuery));
 }
@@ -246,6 +249,7 @@ function renderStatusSelect() {
 function statusFilterOptions() {
   return [
     ["open", "Open", model.stats.open],
+    ["codex", "Codex", model.stats.codex],
     ["backlog", "Backlog", model.stats.backlog],
     ["todo", "Todo", model.stats.todo],
     ["in_progress", "In Progress", model.stats.in_progress],
@@ -261,30 +265,31 @@ function statusFilterOptions() {
 function cardButton(card) {
   return `
     <button class="card ${card.id === activeCardId ? "active" : ""}" data-id="${escapeAttr(card.id)}">
-      <div class="tags">${tagHtml([card.status, ...card.labels])}</div>
+      <div class="tags">${tagHtml([card.stage || card.status, ...card.labels])}</div>
       <h2><span class="key">${escapeHtml(card.key)}</span> ${escapeHtml(card.title)}</h2>
-      <div class="meta">${escapeHtml(developer-machine.local_time)}<span class="card-status-meta"> · ${escapeHtml(card.status_label)}</span> · ${escapeHtml(card.priority)}</div>
+      <div class="meta">${escapeHtml(developer-machine.local_time)}<span class="card-status-meta"> · ${escapeHtml(card.stage_label || card.status_label)}</span> · ${escapeHtml(card.priority)}</div>
       ${cardSummaryHtml(card)}
     </button>
   `;
 }
 
 function detailView(card) {
+  const canEditIssueText = card.status !== "done";
   return `
     ${mobileDetailNav(card)}
     <div class="detail-header">
       <div>
-        <div class="tags detail-tags">${tagHtml([card.status, ...card.labels])}</div>
+        <div class="tags detail-tags">${tagHtml([card.stage || card.status, ...card.labels])}</div>
         <div class="source">${escapeHtml(card.project_name)} · ${escapeHtml(card.key)} · Updated ${escapeHtml(developer-machine.local_time)}</div>
-        <h2>${escapeHtml(card.title)}</h2>
+        <h2${canEditIssueText ? ' class="editable-field" data-edit-field="title" tabindex="0" role="button" title="Edit title"' : ""}>${escapeHtml(card.title)}</h2>
         <div class="source detail-branch">${escapeHtml(card.branch || "No branch")} ${card.worktree ? `· ${escapeHtml(card.worktree)}` : ""}</div>
       </div>
-      <span class="pill">${escapeHtml(card.status_label)}</span>
+      <span class="pill">${escapeHtml(card.stage_label || card.status_label)}</span>
     </div>
 
     <div class="section">
       <h3>Issue Context</h3>
-      <div class="issue-context">${escapeHtml(card.description || "No description yet.")}</div>
+      <div class="issue-context${canEditIssueText ? " editable-field" : ""}"${canEditIssueText ? ' data-edit-field="description" tabindex="0" role="button" title="Edit issue context"' : ""}>${escapeHtml(card.description || "No description yet.")}</div>
     </div>
 
     <div class="section action-panel">
@@ -372,6 +377,14 @@ function wireDetail(card) {
   for (const button of detail.querySelectorAll("[data-mobile-nav]")) {
     button.addEventListener("click", () => handleMobileNavigation(button.dataset.mobileNav));
   }
+  for (const field of detail.querySelectorAll("[data-edit-field]")) {
+    field.addEventListener("click", () => startIssueFieldEdit(card, field.dataset.editField));
+    field.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      startIssueFieldEdit(card, field.dataset.editField);
+    });
+  }
   for (const button of detail.querySelectorAll("button[data-status]")) {
     button.addEventListener("click", () => postStatus(card.id, button.dataset.status));
   }
@@ -404,8 +417,58 @@ function wireDetail(card) {
   }
 }
 
+function startIssueFieldEdit(card, field) {
+  if (card.status === "done") return;
+  const node = detail.querySelector(`[data-edit-field="${field}"]`);
+  if (!node || detail.querySelector("[data-editing-field]")) return;
+  const isTitle = field === "title";
+  const currentValue = isTitle ? card.title : card.description || "";
+  const editor = document.createElement(isTitle ? "input" : "textarea");
+  editor.dataset.editingField = field;
+  editor.className = `inline-editor ${isTitle ? "title-editor" : "context-editor"}`;
+  editor.value = currentValue;
+  editor.setAttribute("aria-label", isTitle ? "Issue title" : "Issue context");
+  if (!isTitle) editor.rows = Math.max(3, Math.min(12, currentValue.split("\n").length + 1));
+  node.replaceWith(editor);
+  editor.focus();
+  editor.select();
+
+  let finished = false;
+  const finish = async (shouldSave) => {
+    if (finished) return;
+    finished = true;
+    const nextValue = editor.value.replace(/\r\n?/g, "\n").trim();
+    if (!shouldSave || nextValue === currentValue || (isTitle && !nextValue)) {
+      render();
+      return;
+    }
+    await saveIssueField(card, field, nextValue);
+  };
+
+  editor.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finish(false);
+      return;
+    }
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      finish(true);
+    }
+  });
+  editor.addEventListener("blur", () => finish(true));
+}
+
+async function saveIssueField(card, field, value) {
+  await post(`/api/issues/${encodeURIComponent(card.id)}/patch`, {
+    [field]: value,
+    actor: "User",
+    project_slug: selectedProjectSlug()
+  });
+}
+
 async function post(url, body) {
-  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const response = await fetch(apiPath(url), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   model = await response.json();
   if (model.model) model = model.model;
   renderProjectSelect();
@@ -414,7 +477,7 @@ async function post(url, body) {
 }
 
 async function postRaw(url, body) {
-  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const response = await fetch(apiPath(url), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   return response.json();
 }
 
@@ -438,7 +501,7 @@ async function createIssue(event) {
   const data = new FormData(issueForm);
   const issueText = String(data.get("issue") || "");
   const issue = deriveIssueFields(issueText);
-  const response = await fetch("/api/issues", {
+  const response = await fetch(apiPath("/api/issues"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -536,6 +599,18 @@ function updateFilterButtons() {
 
 function projectFromLocation() {
   return new URLSearchParams(window.location.search).get("project") || "";
+}
+
+function detectedBasePath() {
+  const configured = document.documentElement?.dataset?.basePath || "";
+  if (configured) return configured.replace(/\/$/, "");
+  const marker = "/desktop-linear";
+  const pathname = window.location.pathname || "";
+  return pathname === marker || pathname.startsWith(`${marker}/`) ? marker : "";
+}
+
+function apiPath(path) {
+  return `${basePath}${path}`;
 }
 
 async function persistActiveProject(projectSlug) {

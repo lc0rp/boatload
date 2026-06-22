@@ -150,6 +150,9 @@ select { border: 1px solid var(--line); background: var(--panel); }
   background: var(--panel);
   box-shadow: var(--shadow);
 }
+.project-options[hidden] {
+  display: none;
+}
 .project-options button {
   min-height: 36px;
   border: 0;
@@ -198,7 +201,7 @@ select { border: 1px solid var(--line); background: var(--panel); }
 }
 .tag.rework, .tag.canceled { border-color: var(--red); color: var(--red); }
 .tag.backlog { border-color: var(--muted); color: var(--muted); }
-.tag.code_review, .tag.human_review, .tag.merging { border-color: var(--blue); color: var(--blue); }
+.tag.code_review, .tag.human_review, .tag.merging, .tag.codex { border-color: var(--blue); color: var(--blue); }
 .detail {
   overflow: auto;
   border: 1px solid var(--line);
@@ -243,6 +246,39 @@ select { border: 1px solid var(--line); background: var(--panel); }
 .section-header h3 { margin: 0; }
 .section p, .issue-context { margin: 0; line-height: 1.45; }
 .issue-context { white-space: pre-wrap; }
+.editable-field {
+  cursor: text;
+  outline: 2px solid transparent;
+  outline-offset: 4px;
+}
+.editable-field:hover {
+  color: var(--accent);
+}
+.editable-field:focus-visible {
+  outline-color: rgba(14, 111, 99, 0.42);
+}
+.inline-editor {
+  width: 100%;
+  border: 1px solid var(--accent);
+  background: #fffaf1;
+  color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(14, 111, 99, 0.12);
+}
+.title-editor {
+  margin: 8px 0;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 30px;
+  line-height: 1.12;
+  font-weight: 800;
+}
+.context-editor {
+  min-height: 120px;
+  padding: 10px 12px;
+  font: inherit;
+  line-height: 1.45;
+  resize: vertical;
+}
 .action-panel {
   background: #fff8e8;
   border: 1px solid var(--line);
