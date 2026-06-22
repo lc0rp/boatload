@@ -646,7 +646,12 @@ async function serveStatic(req, res) {
   try {
     await stat(filePath);
     const ext = path.extname(filePath);
-    const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
+    const types = {
+      ".html": "text/html; charset=utf-8",
+      ".js": "text/javascript; charset=utf-8",
+      ".css": "text/css; charset=utf-8",
+      ".svg": "image/svg+xml"
+    };
     res.writeHead(200, { "content-type": types[ext] || "application/octet-stream", "cache-control": "no-store" });
     createReadStream(filePath).pipe(res);
   } catch {
