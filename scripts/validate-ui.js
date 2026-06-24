@@ -27,6 +27,11 @@ assert(!appJs.includes("Draft Response Or Workpad Note"), "expected ambiguous dr
 assert(!appJs.includes("draft_response"), "expected issue detail not to wire draft_response updates");
 assert(appJs.includes("<h3>History Comment</h3>"), "expected issue detail to label comments as history entries");
 assert(appJs.includes("Add Comment"), "expected comment action button to remain explicit");
+assert(appJs.includes('id="openCodex"'), "expected Talk To This Issue to expose an Open in Codex action");
+assert(appJs.includes("function codexIssueThreadLink(card, text)"), "expected issue-level Codex deep-link helper");
+assert(appJs.includes("function codexIssuePrompt(card, text)"), "expected issue-level Codex prompt helper");
+assert(appJs.includes("function issueWorkspacePath(card)"), "expected issue-level Codex path helper");
+assert(appJs.includes("window.location.href = codexIssueThreadLink(card, text)"), "expected Open in Codex to navigate without posting talk history");
 assert(appJs.includes("[\"all\", \"Total\""), "expected Total counter to map to the all filter");
 assert(appJs.includes("[\"codex\", \"Codex\""), "expected Codex counter to map to the Codex stage filter");
 assert(appJs.includes('filter === "codex"'), "expected cards to filter by computed Codex stage");
@@ -60,8 +65,11 @@ assert(appJs.includes("function codexNewThreadLink(project)"), "expected Codex d
 assert(appJs.includes("codex://threads/new?"), "expected nudge action to use Codex new-thread deep links");
 assert(appJs.includes('"nudge always"'), "expected nudge prompt to start with the requested command");
 assert(appJs.includes("projectWorkspacePath(project)"), "expected nudge link to target the project workspace path");
+assert(appJs.includes("You are discussing this exact Desktop Linear issue in Codex."), "expected issue deep-link prompt to add issue context");
+assert(appJs.includes("User's instruction:"), "expected issue deep-link prompt to include the entered prompt");
 assert(!appJs.includes("projectClear"), "expected app JS not to bind a custom project clear button");
 assert(stylesCss.includes(".issue-search"), "expected issue search styling");
+assert(stylesCss.includes(".talk-actions"), "expected Talk To This Issue action buttons to be grouped beside the input");
 assert(stylesCss.includes(".icon-button[aria-disabled=\"true\"]"), "expected disabled nudge project styling");
 assert(!stylesCss.includes(".project-clear"), "expected project picker to rely on native search clear styling");
 assert(stylesCss.includes("overflow-wrap: anywhere"), "expected long mobile text to wrap instead of forcing horizontal scroll");

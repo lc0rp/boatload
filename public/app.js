@@ -119,6 +119,14 @@ function codexNewThreadLink(project) {
   return `codex://threads/new?${params.toString()}`;
 }
 
+function codexIssueThreadLink(card, text) {
+  const params = new URLSearchParams({
+    prompt: codexIssuePrompt(card, text),
+    path: issueWorkspacePath(card)
+  });
+  return `codex://threads/new?${params.toString()}`;
+}
+
 function nudgePromptForProject(project) {
   const sourceRepo = String(project?.source_repo || "").trim();
   const workflowPath = String(project?.workflow_path || "").trim();
@@ -142,6 +150,32 @@ function projectWorkspacePath(project) {
   const sourceRepo = String(project?.source_repo || "").trim();
   if (sourceRepo.startsWith("/")) return sourceRepo;
   return model?.app?.root_path || "/path/to/dev/desktop-linear";
+}
+
+function issueWorkspacePath(card) {
+  const project = model?.projects.find((candidate) => candidate.slug === card?.project_slug) || currentProject();
+  return projectWorkspacePath(project);
+}
+
+function codexIssuePrompt(card, text) {
+  const projectUrl = `${window.location.origin}${basePath}/?project=${encodeURIComponent(card.project_slug || selectedProjectSlug())}`;
+  return [
+    "You are discussing this exact Desktop Linear issue in Codex.",
+    "",
+    `Desktop Linear issue: ${card.key} - ${card.title}`,
+    `Desktop Linear URL: ${projectUrl}`,
+    `Project: ${card.project_slug} - ${card.project_name}`,
+    `Status: ${card.status_label || card.status}`,
+    card.branch ? `Branch: ${card.branch}` : "Branch: not recorded.",
+    card.worktree ? `Worktree: ${card.worktree}` : "Worktree: not recorded.",
+    card.github_url ? `GitHub PR: ${card.github_url}` : "GitHub PR: not recorded.",
+    "",
+    "Issue context:",
+    card.description || "No description recorded.",
+    "",
+    "User's instruction:",
+    text
+  ].join("\n");
 }
 
 function handleProjectInput() {
@@ -371,7 +405,10 @@ function detailView(card) {
       <h3>Talk To This Issue</h3>
       <div class="talk-box">
         <input id="talk" placeholder="Ask Codex, add a note, or say move to Code Review">
-        <button id="sendTalk">Send</button>
+        <div class="talk-actions">
+          <button id="sendTalk" type="button">Send</button>
+          <button id="openCodex" type="button">Open in Codex</button>
+        </div>
       </div>
     </div>
 
@@ -457,7 +494,13 @@ function wireDetail(card) {
     await post(`/api/issues/${encodeURIComponent(card.id)}/talk`, { text: talk.value, project_slug: selectedProjectSlug() });
     talk.value = "";
   };
+  const openCodex = () => {
+    const text = talk.value.trim();
+    if (!text) return;
+    window.location.href = codexIssueThreadLink(card, text);
+  };
   document.querySelector("#sendTalk").addEventListener("click", sendTalk);
+  document.querySelector("#openCodex").addEventListener("click", openCodex);
   talk.addEventListener("keydown", (event) => {
     if (event.key === "Enter") sendTalk();
   });
@@ -776,6 +819,9 @@ if (globalThis.__DESKTOP_LINEAR_TESTS__) {
   globalThis.__DESKTOP_LINEAR_TESTS__.nudgePromptForProject = nudgePromptForProject;
   globalThis.__DESKTOP_LINEAR_TESTS__.projectWorkspacePath = projectWorkspacePath;
   globalThis.__DESKTOP_LINEAR_TESTS__.codexNewThreadLink = codexNewThreadLink;
+  globalThis.__DESKTOP_LINEAR_TESTS__.codexIssuePrompt = codexIssuePrompt;
+  globalThis.__DESKTOP_LINEAR_TESTS__.codexIssueThreadLink = codexIssueThreadLink;
+  globalThis.__DESKTOP_LINEAR_TESTS__.issueWorkspacePath = issueWorkspacePath;
 }
 
 load();
