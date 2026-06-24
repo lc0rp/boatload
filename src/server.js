@@ -204,6 +204,7 @@ function loadModel(projectSlug = "") {
     app: {
       db_path: dbPath,
       events_path: eventsPath,
+      root_path: root,
       active_project_slug: activeProject?.slug || null,
       sort_direction: sortDirection
     },

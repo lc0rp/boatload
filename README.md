@@ -66,6 +66,9 @@ Desktop Linear implements the issue-tracking subset Desktop Symphony needs:
 - card-level Codex task handoff through `Talk To This Issue`;
 - GitHub event ingestion through `POST /api/github-events`;
 - filesystem-backed state that survives app restarts.
+- project-level `Nudge Project` links that open a new Codex thread with the
+  selected project context and the `nudge always` prompt for checking,
+  unpausing, and immediately running the project's automation.
 
 Desktop Symphony-oriented endpoints are key-based so an orchestrator can work
 with `DL-1` without first resolving an internal row id:

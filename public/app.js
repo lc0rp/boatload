@@ -31,6 +31,7 @@ const statusSelect = document.querySelector("#statusSelect");
 const projectSelect = document.querySelector("#projectSelect");
 const projectOptions = document.querySelector("#projectOptions");
 const issueSearch = document.querySelector("#issueSearch");
+const nudgeProject = document.querySelector("#nudgeProject");
 const issueDialog = document.querySelector("#issueDialog");
 const issueForm = document.querySelector("#issueForm");
 
@@ -50,6 +51,7 @@ projectSelect.addEventListener("input", handleProjectInput);
 projectSelect.addEventListener("focus", renderProjectOptions);
 projectSelect.addEventListener("keydown", handleProjectKeydown);
 projectOptions.addEventListener("click", handleProjectOptionClick);
+nudgeProject.addEventListener("click", handleNudgeProjectClick);
 issueSearch.addEventListener("input", () => {
   issueSearchQuery = issueSearch.value;
   render();
@@ -82,7 +84,64 @@ function renderProjectSelect() {
   const current = model.projects.find((project) => project.slug === activeProjectSlug) || model.projects[0] || null;
   activeProjectSlug = current?.slug || activeProjectSlug;
   projectSelect.value = projectDisplayName(current);
+  updateNudgeProjectLink(current);
   hideProjectOptions();
+}
+
+function handleNudgeProjectClick(event) {
+  updateNudgeProjectLink(currentProject());
+  if (nudgeProject.getAttribute("aria-disabled") === "true") event.preventDefault();
+}
+
+function currentProject() {
+  if (!model) return null;
+  return model.projects.find((project) => project.slug === activeProjectSlug) || model.projects[0] || null;
+}
+
+function updateNudgeProjectLink(project) {
+  if (!project) {
+    nudgeProject.href = "#";
+    nudgeProject.setAttribute("aria-disabled", "true");
+    nudgeProject.title = "No project selected";
+    return;
+  }
+  nudgeProject.href = codexNewThreadLink(project);
+  nudgeProject.removeAttribute?.("aria-disabled");
+  nudgeProject.title = "Nudge Project";
+  nudgeProject.setAttribute("aria-label", `Nudge ${project.slug} project`);
+}
+
+function codexNewThreadLink(project) {
+  const params = new URLSearchParams({
+    prompt: nudgePromptForProject(project),
+    path: projectWorkspacePath(project)
+  });
+  return `codex://threads/new?${params.toString()}`;
+}
+
+function nudgePromptForProject(project) {
+  const sourceRepo = String(project?.source_repo || "").trim();
+  const workflowPath = String(project?.workflow_path || "").trim();
+  const projectUrl = `${window.location.origin}${basePath}/?project=${encodeURIComponent(project.slug)}`;
+  return [
+    "nudge always",
+    "",
+    `Project: ${project.slug} - ${project.name}`,
+    `Desktop Linear project slug: ${project.slug}`,
+    `Desktop Linear URL: ${projectUrl}`,
+    workflowPath ? `Workflow path: ${workflowPath}` : "Workflow path: not recorded in Desktop Linear.",
+    sourceRepo ? `Source repo: ${sourceRepo}` : `Source repo: ${projectWorkspacePath(project)} (Desktop Linear fallback).`,
+    "",
+    "Check the Codex automation tied to this project. If it is paused, unpause it. Then run it immediately.",
+    "Preserve the automation prompt, cadence, ownership split, and thread binding unless User explicitly asks for changes.",
+    "Report the automation id, whether it was paused, what changed, and the immediate run result."
+  ].join("\n");
+}
+
+function projectWorkspacePath(project) {
+  const sourceRepo = String(project?.source_repo || "").trim();
+  if (sourceRepo.startsWith("/")) return sourceRepo;
+  return model?.app?.root_path || "/path/to/dev/desktop-linear";
 }
 
 function handleProjectInput() {
@@ -540,6 +599,7 @@ async function handleGlobalShortcut(event) {
   }
   const key = event.key.toLowerCase();
   if (key === "+" || event.key === "=") return openIssueDialog();
+  if (key === "n") return openNudgeProjectLink();
   if (key === "r") return load();
   const card = model?.cards.find((candidate) => candidate.id === activeCardId);
   if (!card) return;
@@ -549,6 +609,12 @@ async function handleGlobalShortcut(event) {
     event.preventDefault();
     await postStatus(card.id, map[key]);
   }
+}
+
+function openNudgeProjectLink() {
+  updateNudgeProjectLink(currentProject());
+  if (nudgeProject.getAttribute("aria-disabled") === "true") return;
+  window.location.href = nudgeProject.href;
 }
 
 function moveActiveCard(delta) {
@@ -707,6 +773,9 @@ if (globalThis.__DESKTOP_LINEAR_TESTS__) {
   globalThis.__DESKTOP_LINEAR_TESTS__.historyHtml = historyHtml;
   globalThis.__DESKTOP_LINEAR_TESTS__.linkHistoryText = linkHistoryText;
   globalThis.__DESKTOP_LINEAR_TESTS__.issueMatchesSearch = issueMatchesSearch;
+  globalThis.__DESKTOP_LINEAR_TESTS__.nudgePromptForProject = nudgePromptForProject;
+  globalThis.__DESKTOP_LINEAR_TESTS__.projectWorkspacePath = projectWorkspacePath;
+  globalThis.__DESKTOP_LINEAR_TESTS__.codexNewThreadLink = codexNewThreadLink;
 }
 
 load();
