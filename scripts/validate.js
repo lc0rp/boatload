@@ -206,7 +206,7 @@ async function validateHistoryLinks() {
     Element: class Element {},
     fetch: async () => ({
       json: async () => ({
-        app: { active_project_slug: "VAL", sort_direction: "desc" },
+        app: { active_project_slug: "VAL", root_path: "/path/to/dev/desktop-linear", sort_direction: "desc" },
         projects: [{ slug: "VAL", name: "Validation Project" }],
         stats: { open: 0, backlog: 0, todo: 0, in_progress: 0, rework: 0, code_review: 0, human_review: 0, merging: 0, done: 0, total: 0 },
         cards: []
@@ -241,6 +241,8 @@ async function validateHistoryLinks() {
   assert(typeof historyHtml === "function", "expected history renderer test hook");
   const issueMatchesSearch = sandbox.__DESKTOP_LINEAR_TESTS__.issueMatchesSearch;
   assert(typeof issueMatchesSearch === "function", "expected issue search test hook");
+  const codexIssueThreadLink = sandbox.__DESKTOP_LINEAR_TESTS__.codexIssueThreadLink;
+  assert(typeof codexIssueThreadLink === "function", "expected issue Codex deep-link test hook");
   const searchableCard = { key: "VAL-12", title: "Persist workpad note", description: "Search by implementation detail." };
   assert(issueMatchesSearch(searchableCard, "VAL-12"), "expected issue search to match by issue ID");
   assert(issueMatchesSearch(searchableCard, "workpad"), "expected issue search to match by title");
@@ -254,6 +256,26 @@ async function validateHistoryLinks() {
   assert(html.includes('<a href="https://linear.app/test" target="_blank" rel="noreferrer">https://linear.app/test</a>'), "expected comment URL to become a link");
   assert(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"), "expected unsafe history text to remain escaped");
   assert(!html.includes("<script>"), "expected history renderer not to emit script tags");
+  const deepLink = new URL(codexIssueThreadLink({
+    key: "VAL-12",
+    title: "Open in Codex",
+    description: "Use a new thread with issue context.",
+    project_slug: "VAL",
+    project_name: "Validation Project",
+    status: "in_progress",
+    status_label: "In Progress",
+    branch: "VAL-12-open-in-codex",
+    worktree: "/tmp/desktop-linear-validation",
+    github_url: ""
+  }, "Investigate this card"));
+  assert(deepLink.protocol === "codex:", "expected issue Codex link to use the codex protocol");
+  assert(deepLink.pathname === "/new", "expected issue Codex link to open a new thread");
+  assert(deepLink.searchParams.get("path") === "/path/to/dev/desktop-linear", "expected issue Codex link to target the desktop-linear folder");
+  const prompt = deepLink.searchParams.get("prompt") || "";
+  assert(prompt.includes("Desktop Linear issue: VAL-12 - Open in Codex"), "expected issue Codex prompt to identify the exact card");
+  assert(prompt.includes("Status: In Progress"), "expected issue Codex prompt to include current issue status");
+  assert(prompt.includes("Worktree: /tmp/desktop-linear-validation"), "expected issue Codex prompt to include the worktree");
+  assert(prompt.includes("User's instruction:\nInvestigate this card"), "expected issue Codex prompt to include the typed prompt");
 }
 
 async function installFakeCodex() {

@@ -309,6 +309,11 @@ select { border: 1px solid var(--line); background: var(--panel); }
   grid-template-columns: 1fr auto;
   gap: 8px;
 }
+.talk-actions {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
 .talk-box button, .comment-box button, .modal #saveIssue {
   min-height: 42px;
   border: 1px solid var(--ink);
@@ -513,5 +518,9 @@ select { border: 1px solid var(--line); background: var(--panel); }
   .detail h2 { font-size: 22px; }
   .section { padding: 14px 0; }
   .talk-box, .comment-box { grid-template-columns: 1fr; }
+  .talk-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
   .talk-box button, .comment-box button { width: 100%; }
 }
