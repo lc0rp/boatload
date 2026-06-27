@@ -64,6 +64,10 @@ assert(appJs.includes('if (key === "n") return openNudgeProjectLink();'), "expec
 assert(appJs.includes("function codexNewThreadLink(project)"), "expected Codex deep link helper");
 assert(appJs.includes("codex://threads/new?"), "expected nudge action to use Codex new-thread deep links");
 assert(appJs.includes('"nudge always"'), "expected nudge prompt to start with the requested command");
+assert(appJs.includes("Identify the automation tied to the current project."), "expected nudge prompt to identify the project automation");
+assert(appJs.includes("If it is paused, unpause it."), "expected nudge prompt to unpause paused automation");
+assert(appJs.includes("Set its start time to 30 seconds from now so it triggers and runs."), "expected nudge prompt to schedule the run 30 seconds out");
+assert(appJs.includes("Do not run it directly or in the same thread."), "expected nudge prompt to avoid direct or same-thread execution");
 assert(appJs.includes("projectWorkspacePath(project)"), "expected nudge link to target the project workspace path");
 assert(appJs.includes("You are discussing this exact Desktop Linear issue in Codex."), "expected issue deep-link prompt to add issue context");
 assert(appJs.includes("User's instruction:"), "expected issue deep-link prompt to include the entered prompt");
