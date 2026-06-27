@@ -276,6 +276,18 @@ async function validateHistoryLinks() {
   assert(prompt.includes("Status: In Progress"), "expected issue Codex prompt to include current issue status");
   assert(prompt.includes("Worktree: /tmp/desktop-linear-validation"), "expected issue Codex prompt to include the worktree");
   assert(prompt.includes("User's instruction:\nInvestigate this card"), "expected issue Codex prompt to include the typed prompt");
+
+  const nudgePrompt = sandbox.__DESKTOP_LINEAR_TESTS__.nudgePromptForProject({
+    slug: "VAL",
+    name: "Validation Project",
+    source_repo: "/path/to/dev/desktop-linear",
+    workflow_path: "/path/to/dev/desktop-linear/.orchestration/desktop-linear.WORKFLOW.md"
+  });
+  assert(nudgePrompt.includes("Identify the automation tied to the current project."), "expected nudge prompt to identify the project's automation");
+  assert(nudgePrompt.includes("If it is paused, unpause it."), "expected nudge prompt to unpause paused automation");
+  assert(nudgePrompt.includes("Set its start time to 30 seconds from now so it triggers and runs."), "expected nudge prompt to schedule execution 30 seconds ahead");
+  assert(nudgePrompt.includes("Notify the user and end."), "expected nudge prompt to end after notifying the user");
+  assert(nudgePrompt.includes("Do not run it directly or in the same thread."), "expected nudge prompt to avoid direct execution in-thread");
 }
 
 async function installFakeCodex() {

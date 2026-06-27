@@ -140,9 +140,11 @@ function nudgePromptForProject(project) {
     workflowPath ? `Workflow path: ${workflowPath}` : "Workflow path: not recorded in Desktop Linear.",
     sourceRepo ? `Source repo: ${sourceRepo}` : `Source repo: ${projectWorkspacePath(project)} (Desktop Linear fallback).`,
     "",
-    "Check the Codex automation tied to this project. If it is paused, unpause it. Then run it immediately.",
-    "Preserve the automation prompt, cadence, ownership split, and thread binding unless User explicitly asks for changes.",
-    "Report the automation id, whether it was paused, what changed, and the immediate run result."
+    "Identify the automation tied to the current project.",
+    "If it is paused, unpause it.",
+    "Set its start time to 30 seconds from now so it triggers and runs.",
+    "Notify the user and end.",
+    "Do not run it directly or in the same thread."
   ].join("\n");
 }
 
