@@ -116,6 +116,7 @@ function migrate(database) {
   ensureColumn(database, "projects", "linear_slug_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "projects", "source_repo", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "projects", "workflow_path", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "projects", "description", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "issues", "linear_issue_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "issues", "linear_identifier", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "issues", "linear_url", "TEXT NOT NULL DEFAULT ''");
@@ -154,9 +155,21 @@ function createProject(database, body) {
   const now = body.now || iso();
   const slug = normalizeSlug(body.slug || body.name || "DL");
   const name = String(body.name || slug).trim();
-  database.prepare("INSERT INTO projects (slug, name, next_number, created_at, updated_at) VALUES (?, ?, 1, ?, ?)").run(slug, name, now, now);
+  const description = String(body.description || "").trim();
+  const sourceRepo = String(body.source_repo || "").trim();
+  const workflowPath = String(body.workflow_path || "").trim();
+  database.prepare(`
+    INSERT INTO projects (slug, name, next_number, created_at, updated_at, description, source_repo, workflow_path)
+    VALUES (?, ?, 1, ?, ?, ?, ?, ?)
+  `).run(slug, name, now, now, description, sourceRepo, workflowPath);
   const project = projectBySlug(database, slug);
-  recordEvent(database, null, "project_created", body.actor || "User", `Project ${slug} created.`, { slug, name }, now);
+  recordEvent(database, null, "project_created", body.actor || "User", `Project ${slug} created.`, {
+    slug,
+    name,
+    description,
+    source_repo: sourceRepo,
+    workflow_path: workflowPath
+  }, now);
   return project;
 }
 

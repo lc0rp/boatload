@@ -73,6 +73,8 @@ Desktop Linear implements the issue-tracking subset Desktop Symphony needs:
 Desktop Symphony-oriented endpoints are key-based so an orchestrator can work
 with `DL-1` without first resolving an internal row id:
 
+- `POST /api/projects` with `slug`, `name`, `description`, `source_repo`, and
+  `workflow_path`
 - `GET /api/symphony/issues?project=DL&states=todo,rework,code_review`
 - `POST /api/symphony/issues`
 - `POST /api/symphony/issues/DL-1/status`

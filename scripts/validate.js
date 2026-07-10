@@ -21,10 +21,21 @@ try {
   await waitForServer(server);
   await validateNewIssueDialog();
 
-  await post("/api/projects", { slug: "VAL", name: "Validation Project" });
+  await post("/api/projects", {
+    slug: "VAL",
+    name: "Validation Project",
+    description: "Validation project description.",
+    source_repo: "/tmp/validation-project",
+    workflow_path: "/tmp/validation-project/.orchestration/VAL-medium.WORKFLOW.md"
+  });
   assert(projectCreateLabel(parseProjectCandidate("New Project")) === "Create \"New Project, NEW\"", "expected project selector to guess a three-letter project stub");
   assert(projectCreateLabel(parseProjectCandidate("Customer Ops, COPS")) === "Create \"Customer Ops, COPS\"", "expected project selector to keep an explicit typed project stub");
   await post("/api/projects", { slug: "ALT", name: "Alternate Project" });
+  const createdProjectModel = await getModel("VAL");
+  const createdProject = createdProjectModel.projects.find((project) => project.slug === "VAL");
+  assert(createdProject.description === "Validation project description.", "expected project description to persist");
+  assert(createdProject.source_repo === "/tmp/validation-project", "expected project source repo to persist");
+  assert(createdProject.workflow_path.endsWith("VAL-medium.WORKFLOW.md"), "expected project workflow path to persist");
   const created = await post("/api/issues", {
     project_slug: "VAL",
     title: "Validate Desktop Linear lifecycle",
