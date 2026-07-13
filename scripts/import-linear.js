@@ -9,17 +9,11 @@ import os from "node:os";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const dataDir = path.join(root, "data");
-const dbPath = process.env.DESKTOP_LINEAR_DB || path.join(dataDir, "desktop-linear.sqlite");
-const eventsPath = process.env.DESKTOP_LINEAR_EVENTS || path.join(dataDir, "desktop-linear-events.jsonl");
+const runtimeEnv = { ...readEnvFileSync(path.join(root, ".env")), ...process.env };
+const dbPath = runtimeEnv.DESKTOP_LINEAR_DB || path.join(dataDir, "desktop-linear.sqlite");
+const eventsPath = runtimeEnv.DESKTOP_LINEAR_EVENTS || path.join(dataDir, "desktop-linear-events.jsonl");
 const linearUrl = "https://api.linear.app/graphql";
 const laneSuffixes = new Set(["small", "medium", "large", "urgent", "high", "low"]);
-const preferredProjects = new Map([
-  ["example-project-a", { slug: "BC", name: "Example Project A" }],
-  ["example-project-b", { slug: "PLS", name: "Example Project B" }],
-  ["example-project-c", { slug: "ON", name: "Example Project C" }],
-  ["example-project-d", { slug: "USDC", name: "Example Project D" }],
-  ["example-project-e", { slug: "WR", name: "Example Project E" }]
-]);
 
 let dryRun = false;
 let apiKey = "";
@@ -63,12 +57,10 @@ async function discoverProjects() {
     const linearSlugId = matchScalar(text, "project_slug");
     if (!linearSlugId) continue;
     const workflowSlug = localSlugFromWorkflow(workflowPath);
-    const preferred = preferredProjects.get(workflowSlug);
-    const slug = preferred?.slug || workflowSlug;
     const existing = byLinearSlug.get(linearSlugId);
     const candidate = {
-      slug: normalizeSlug(slug),
-      name: preferred?.name || titleFromSlug(workflowSlug),
+      slug: normalizeSlug(workflowSlug),
+      name: titleFromSlug(workflowSlug),
       linear_slug_id: linearSlugId,
       source_repo: repoFromWorkflow(workflowPath),
       workflow_path: workflowPath,
@@ -80,7 +72,10 @@ async function discoverProjects() {
 }
 
 function findWorkflowPaths() {
-  const roots = ["/path/to/dev", "/path/to/work"];
+  const roots = String(runtimeEnv.DESKTOP_LINEAR_PROJECT_ROOTS || `${path.join(os.homedir(), "dev")}${path.delimiter}${path.join(os.homedir(), "work")}`)
+    .split(path.delimiter)
+    .map((value) => value.trim())
+    .filter(Boolean);
   const found = [];
   for (const base of roots) {
     try {
@@ -93,7 +88,8 @@ function findWorkflowPaths() {
 
 function historyHits(linearSlugId) {
   try {
-    const output = execFileSync("rg", ["-l", linearSlugId, path.join(os.homedir(), ".codex", "sessions")], { encoding: "utf8", timeout: 15000 });
+    const sessionsDir = runtimeEnv.CODEX_SESSIONS_DIR || path.join(os.homedir(), ".codex", "sessions");
+    const output = execFileSync("rg", ["-l", linearSlugId, sessionsDir], { encoding: "utf8", timeout: 15000 });
     return output.split("\n").filter(Boolean).slice(0, 8);
   } catch {
     return [];
@@ -127,26 +123,7 @@ function titleFromSlug(slug) {
 }
 
 function loadLinearApiKey() {
-  const env = {
-    ...readEnvFileSync(path.join(root, ".env")),
-    ...readEnvFileSync(path.join(os.homedir(), ".agents", ".env")),
-    ...process.env
-  };
-  if (env.LINEAR_API_KEY) return env.LINEAR_API_KEY;
-  try {
-    const configPath = path.join(os.homedir(), ".agents", ".infisical.json");
-    const config = JSON.parse(readFileSync(configPath, "utf8"));
-    const projectId = config.project_id || config.projectId || config.workspaceId;
-    const environment = config.environment || config.defaultEnvironment || "";
-    const cmd = ["secrets", "--output", "json", "--projectId", projectId, "--silent"];
-    if (environment) cmd.push("--env", environment);
-    const output = execFileSync("infisical", cmd, { encoding: "utf8" });
-    const parsed = JSON.parse(output);
-    const item = Array.isArray(parsed) ? parsed.find((entry) => entry.secretKey === "LINEAR_API_KEY") : parsed;
-    return item?.secretValue || "";
-  } catch {
-    return "";
-  }
+  return runtimeEnv.LINEAR_API_KEY || "";
 }
 
 function readEnvFileSync(filePath) {

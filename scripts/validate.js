@@ -281,7 +281,7 @@ async function validateHistoryLinks() {
   }, "Investigate this card"));
   assert(deepLink.protocol === "codex:", "expected issue Codex link to use the codex protocol");
   assert(deepLink.pathname === "/new", "expected issue Codex link to open a new thread");
-  assert(deepLink.searchParams.get("path") === "/path/to/dev/desktop-linear", "expected issue Codex link to target the desktop-linear folder");
+  assert(deepLink.searchParams.get("path") === ".", "expected issue Codex link to use the generic repository fallback");
   const prompt = deepLink.searchParams.get("prompt") || "";
   assert(prompt.includes("Desktop Linear issue: VAL-12 - Open in Codex"), "expected issue Codex prompt to identify the exact card");
   assert(prompt.includes("Status: In Progress"), "expected issue Codex prompt to include current issue status");

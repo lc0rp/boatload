@@ -14,4 +14,4 @@ Add notes for devbox services, deployment topology, and operational checks.
 
 ## Contents
 
-- [Devbox Caddy edge](./devbox-caddy-edge.md) — Caddy routing pattern for Desktop Linear and future devbox services.
+- Runtime configuration is documented in the repository README and `.env.example`.

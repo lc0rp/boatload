@@ -1,6 +1,6 @@
-# Desktop Linear
+# Local Issue Tracker
 
-Codex-native local issue tracker for Desktop Symphony projects.
+Filesystem-backed issue tracker for local agent and software projects.
 
 ## Run
 
@@ -10,27 +10,18 @@ npm start
 
 Open `http://127.0.0.1:4888` in the Codex in-app browser.
 
-To expose it on Tailscale from this Mac:
+Copy the environment template before configuring machine-specific paths or credentials:
 
 ```bash
-npm run start:devbox
+cp .env.example .env
+set -a
+source .env
+set +a
+npm start
 ```
 
-Open `https://host.example.test/desktop-linear/` from another device on
-the tailnet. On the devbox, Caddy owns `http://dev/*`, `https://dev/*`, and
-`https://host.example.test/*`; Desktop Linear runs as a plain HTTP
-backend on `127.0.0.1:4890`.
-
-See [Desktop Linear Caddy access](docs/desktop-linear/operators.md) for the
-devbox Caddy setup and validation commands.
-
-For a persistent Mac service, load the LaunchAgent:
-
-```bash
-cp ops/com.example.desktop-linear.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.example.desktop-linear.plist
-launchctl enable gui/501/com.example.desktop-linear
-```
+`.env` is ignored. Keep `LINEAR_API_KEY`, local database paths, project roots,
+and externally reachable service URLs there.
 
 ## Import From Linear
 
@@ -39,9 +30,8 @@ npm run import:linear -- --dry-run
 npm run import:linear
 ```
 
-The importer discovers current Desktop Symphony projects from
-`/path/to/dev/*/.orchestration/*WORKFLOW.md` and
-`/path/to/work/*/.orchestration/*WORKFLOW.md`, ignores generated
+The importer discovers projects from the directories in
+`DESKTOP_LINEAR_PROJECT_ROOTS`, finds `.orchestration/*WORKFLOW.md`, ignores generated
 `symphony-workspaces`, then imports every Linear issue and comment for each
 workflow's `tracker.project_slug`. Local project IDs stay project-scoped, such
 as `BABEL-COPY-1`; the Linear `Project.slugId`, issue identifier, Linear URL,

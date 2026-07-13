@@ -6,8 +6,8 @@ Brief map for Desktop Linear.
 
 - Codex-native local issue tracker for Desktop Symphony projects.
 - State is owned by the app on disk.
-- Primary DB: `/path/to/dev/desktop-linear/data/desktop-linear.sqlite`.
-- Append-only event mirror: `/path/to/dev/desktop-linear/data/desktop-linear-events.jsonl`.
+- Primary DB: `data/desktop-linear.sqlite` by default; override with `DESKTOP_LINEAR_DB`.
+- Append-only event mirror: `data/desktop-linear-events.jsonl` by default; override with `DESKTOP_LINEAR_EVENTS`.
 
 ## Run
 

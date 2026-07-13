@@ -149,7 +149,7 @@ function nudgePromptForProject(project) {
 function projectWorkspacePath(project) {
   const sourceRepo = String(project?.source_repo || "").trim();
   if (sourceRepo.startsWith("/")) return sourceRepo;
-  return model?.app?.root_path || "/path/to/dev/desktop-linear";
+  return model?.app?.root_path || ".";
 }
 
 function issueWorkspacePath(card) {

@@ -5,6 +5,12 @@
 .env
 .env.*
 !.env.example
+client_secret*.json
+credentials*.json
+token*.json
+*.pem
+*.p12
+*.pfx
 
 # Browser/test artifacts
 /.playwright-mcp/
@@ -20,6 +26,8 @@
 /output/
 
 # Desktop Symphony runtime artifacts
+/.codex/
+/.orchestration/
 /.orchestration/desktop-symphony-v2-dispatch.json
 /.orchestration/desktop-symphony-v2-heartbeat-lock.json
 /.orchestration/review-artifacts/
